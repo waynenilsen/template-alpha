@@ -1,14 +1,14 @@
 import {
-  CheckCircle2,
-  Users,
   Building2,
-  Shield,
+  CheckCircle2,
   Database,
   Layers,
+  Shield,
+  Users,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 const features = [
   {
@@ -152,19 +152,39 @@ export default function Home() {
               <div className="flex-shrink-0">
                 <div className="rounded-lg border border-zinc-300 bg-white p-6 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-950">
                   <div className="text-zinc-500">// Example schema</div>
-                  <div className="text-blue-600 dark:text-blue-400">CREATE TABLE</div>
-                  <span className="text-zinc-900 dark:text-zinc-100"> todos (</span>
+                  <div className="text-blue-600 dark:text-blue-400">
+                    CREATE TABLE
+                  </div>
+                  <span className="text-zinc-900 dark:text-zinc-100">
+                    {" "}
+                    todos (
+                  </span>
                   <div className="ml-4 text-zinc-900 dark:text-zinc-100">
-                    id <span className="text-purple-600 dark:text-purple-400">UUID</span>,
+                    id{" "}
+                    <span className="text-purple-600 dark:text-purple-400">
+                      UUID
+                    </span>
+                    ,
                   </div>
                   <div className="ml-4 text-zinc-900 dark:text-zinc-100">
-                    tenant_id <span className="text-purple-600 dark:text-purple-400">UUID</span>,
+                    tenant_id{" "}
+                    <span className="text-purple-600 dark:text-purple-400">
+                      UUID
+                    </span>
+                    ,
                   </div>
                   <div className="ml-4 text-zinc-900 dark:text-zinc-100">
-                    title <span className="text-purple-600 dark:text-purple-400">TEXT</span>,
+                    title{" "}
+                    <span className="text-purple-600 dark:text-purple-400">
+                      TEXT
+                    </span>
+                    ,
                   </div>
                   <div className="ml-4 text-zinc-900 dark:text-zinc-100">
-                    completed <span className="text-purple-600 dark:text-purple-400">BOOLEAN</span>
+                    completed{" "}
+                    <span className="text-purple-600 dark:text-purple-400">
+                      BOOLEAN
+                    </span>
                   </div>
                   <span className="text-zinc-900 dark:text-zinc-100">);</span>
                 </div>
@@ -176,7 +196,9 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="container mx-auto px-6 py-12 text-center text-sm text-zinc-500 dark:text-zinc-500">
-        <p>Built as a learning exercise for multi-tenant architecture patterns.</p>
+        <p>
+          Built as a learning exercise for multi-tenant architecture patterns.
+        </p>
       </footer>
     </div>
   );
