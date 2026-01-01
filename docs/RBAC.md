@@ -1,6 +1,6 @@
 # RBAC System Documentation
 
-A home-rolled Role-Based Access Control (RBAC) system for multi-tenant applications.
+A home-rolled Role-Based Access Control (RBAC) system for multi-tenant applications with internal staff support.
 
 ## Overview
 
@@ -8,14 +8,40 @@ This MVP authentication and authorization system provides:
 
 - User self-registration with automatic organization creation
 - Multi-tenant architecture at its core
-- Role-based access control (RBAC) by default
+- Role-based access control (RBAC) for tenant users
+- Internal staff access via simple admin flag (customer support)
 - Email/password authentication
+
+## User Types
+
+The system distinguishes between two categories of users:
+
+### 1. Tenant Users (Customers)
+
+Regular users who sign up and belong to organizations. They operate within the tenant RBAC system.
+
+### 2. Internal Staff (Company Employees)
+
+Company employees (customer support, operations, etc.) who need cross-tenant access. These users have a simple `is_admin` flag on their user record—**no separate RBAC system**.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Users                                │
+├─────────────────────────────┬───────────────────────────────┤
+│       Tenant Users          │        Internal Staff         │
+├─────────────────────────────┼───────────────────────────────┤
+│ • Belong to organizations   │ • is_admin = true             │
+│ • Have org roles (RBAC)     │ • No RBAC, just the flag      │
+│ • Scoped to their tenant    │ • Cross-tenant access         │
+│ • Self-service signup       │ • Created by other admins     │
+└─────────────────────────────┴───────────────────────────────┘
+```
 
 ## Core Concepts
 
 ### Multi-Tenancy
 
-Every user belongs to an **Organization** (tenant). When a user signs up:
+Every tenant user belongs to an **Organization**. When a user signs up:
 
 1. A new organization is created
 2. The user is assigned as the **owner** of that organization
@@ -23,14 +49,23 @@ Every user belongs to an **Organization** (tenant). When a user signs up:
 
 This ensures complete data isolation between tenants.
 
-### RBAC Model
+### Internal Staff Access
 
-The system uses a simple role-based permission model:
+Internal staff (customer support) bypass tenant RBAC entirely:
+
+- Single `is_admin` boolean flag on the user record
+- Can access any organization's data for support purposes
+- Cannot be created via self-signup (must be provisioned)
+- Audit logging should track all admin actions
+
+### Tenant RBAC Model
+
+For regular tenant users:
 
 ```
-User → Role → Permissions
-  ↓
-Organization (tenant)
+User → Membership → Organization
+           ↓
+         Role (owner/admin/member)
 ```
 
 **Default Roles:**
@@ -50,11 +85,13 @@ CREATE TABLE users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email         VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  is_admin      BOOLEAN NOT NULL DEFAULT FALSE,  -- Internal staff flag
   created_at    TIMESTAMP DEFAULT NOW(),
   updated_at    TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_is_admin ON users(is_admin) WHERE is_admin = TRUE;
 ```
 
 ### Organizations Table
@@ -89,27 +126,15 @@ CREATE INDEX idx_org_members_user ON organization_members(user_id);
 CREATE INDEX idx_org_members_org ON organization_members(organization_id);
 ```
 
-### Roles Table (Optional, for custom roles)
-
-```sql
-CREATE TABLE roles (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name            VARCHAR(100) NOT NULL,
-  permissions     JSONB NOT NULL DEFAULT '[]',
-  created_at      TIMESTAMP DEFAULT NOW(),
-
-  UNIQUE(organization_id, name)
-);
-```
-
 ## Authentication
 
-### Sign Up Flow
+### Sign Up Flow (Tenant Users Only)
+
+Internal staff cannot self-register. This flow is for tenant users only.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      User Sign Up                           │
+│                    Tenant User Sign Up                      │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -121,7 +146,7 @@ CREATE TABLE roles (
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  3. Hash password (bcrypt, cost factor 12)                  │
-│  4. Create user record                                      │
+│  4. Create user record (is_admin = false)                   │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -137,11 +162,11 @@ CREATE TABLE roles (
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Sign In Flow
+### Sign In Flow (All Users)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      User Sign In                           │
+│                        User Sign In                         │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -151,14 +176,22 @@ CREATE TABLE roles (
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
-┌─────────────────────────────────────────────────────────────┐
-│  3. Load user's organization memberships                    │
-│  4. Generate session/JWT token                              │
-└─────────────────────────────────────────────────────────────┘
-                            │
+                    ┌───────┴───────┐
+                    │  is_admin?    │
+                    └───────┬───────┘
+              ┌─────────────┼─────────────┐
+              ▼             │             ▼
+┌─────────────────────┐     │   ┌─────────────────────┐
+│   Internal Staff    │     │   │    Tenant User      │
+│   • No org context  │     │   │ • Load memberships  │
+│   • Admin dashboard │     │   │ • Set default org   │
+└─────────────────────┘     │   └─────────────────────┘
+              │             │             │
+              └─────────────┼─────────────┘
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  5. Return authenticated response with org context          │
+│  3. Generate session/JWT token                              │
+│  4. Return authenticated response                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -166,7 +199,7 @@ CREATE TABLE roles (
 
 ### POST /api/auth/signup
 
-Create a new user account and organization.
+Create a new tenant user account and organization. Internal staff cannot use this endpoint.
 
 **Request:**
 
@@ -184,7 +217,8 @@ Create a new user account and organization.
 {
   "user": {
     "id": "uuid",
-    "email": "user@example.com"
+    "email": "user@example.com",
+    "isAdmin": false
   },
   "organization": {
     "id": "uuid",
@@ -205,7 +239,7 @@ Create a new user account and organization.
 
 ### POST /api/auth/signin
 
-Authenticate an existing user.
+Authenticate any user (tenant or internal staff).
 
 **Request:**
 
@@ -216,13 +250,14 @@ Authenticate an existing user.
 }
 ```
 
-**Response (200 OK):**
+**Response (200 OK) - Tenant User:**
 
 ```json
 {
   "user": {
     "id": "uuid",
-    "email": "user@example.com"
+    "email": "user@example.com",
+    "isAdmin": false
   },
   "organizations": [
     {
@@ -232,6 +267,20 @@ Authenticate an existing user.
       "role": "owner"
     }
   ],
+  "token": "jwt-token"
+}
+```
+
+**Response (200 OK) - Internal Staff:**
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "support@ourcompany.com",
+    "isAdmin": true
+  },
+  "organizations": [],
   "token": "jwt-token"
 }
 ```
@@ -256,34 +305,84 @@ End the current session.
 
 ## Authorization
 
-### Permission Checking
-
-All protected routes should verify:
-
-1. **Authentication** - Valid session/JWT token
-2. **Organization context** - User belongs to the requested org
-3. **Role-based access** - User's role permits the action
+### Authorization Logic
 
 ```typescript
-// Middleware example
+type AuthResult =
+  | { authorized: true; reason: 'admin' | 'role' }
+  | { authorized: false; reason: 'unauthenticated' | 'no_membership' | 'insufficient_role' };
+
 async function authorize(
   userId: string,
   organizationId: string,
-  requiredRole: Role[]
-): Promise<boolean> {
+  requiredRoles: Role[]
+): Promise<AuthResult> {
+  const user = await db.users.findUnique({ where: { id: userId } });
+
+  if (!user) {
+    return { authorized: false, reason: 'unauthenticated' };
+  }
+
+  // Internal staff bypass tenant RBAC
+  if (user.isAdmin) {
+    return { authorized: true, reason: 'admin' };
+  }
+
+  // Check tenant RBAC
   const membership = await db.organizationMembers.findFirst({
     where: {
       userId,
       organizationId,
-      role: { in: requiredRole }
+      role: { in: requiredRoles }
     }
   });
 
-  return !!membership;
+  if (!membership) {
+    return { authorized: false, reason: 'no_membership' };
+  }
+
+  return { authorized: true, reason: 'role' };
 }
 ```
 
-### Role Hierarchy
+### Authorization Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Authorization Check                        │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+                ┌───────────────────────┐
+                │  Valid session/JWT?   │
+                └───────────┬───────────┘
+                            │
+              ┌─────────────┼─────────────┐
+              │ No          │             │ Yes
+              ▼             │             ▼
+        ┌───────────┐       │   ┌───────────────────┐
+        │ 401 Error │       │   │  user.isAdmin?    │
+        └───────────┘       │   └─────────┬─────────┘
+                            │             │
+                            │   ┌─────────┼─────────┐
+                            │   │ Yes     │         │ No
+                            │   ▼         │         ▼
+                            │ ┌───────┐   │   ┌───────────────┐
+                            │ │ ALLOW │   │   │ Check org     │
+                            │ └───────┘   │   │ membership +  │
+                            │             │   │ role          │
+                            │             │   └───────┬───────┘
+                            │             │           │
+                            │             │   ┌───────┼───────┐
+                            │             │   │ Pass  │       │ Fail
+                            │             │   ▼       │       ▼
+                            │             │ ┌───────┐ │ ┌───────────┐
+                            │             │ │ ALLOW │ │ │ 403 Error │
+                            │             │ └───────┘ │ └───────────┘
+                            └─────────────┴───────────┘
+```
+
+### Tenant Role Hierarchy
 
 ```
 owner > admin > member
@@ -304,17 +403,66 @@ export async function GET(req: Request, { params }) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const hasAccess = await authorize(
+  const auth = await authorize(
     session.userId,
     params.orgId,
     ['owner', 'admin', 'member']
   );
 
-  if (!hasAccess) {
+  if (!auth.authorized) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // Log if admin accessed tenant data
+  if (auth.reason === 'admin') {
+    await logAdminAccess(session.userId, params.orgId, 'read_resources');
+  }
+
   // Proceed with request...
+}
+```
+
+## Internal Staff Management
+
+### Creating Internal Staff Users
+
+Internal staff are NOT created via self-signup. They must be provisioned by existing admins.
+
+```typescript
+// Only callable by existing is_admin users
+async function createInternalUser(
+  email: string,
+  password: string,
+  createdBy: string
+): Promise<User> {
+  const hashedPassword = await hashPassword(password);
+
+  const user = await db.users.create({
+    data: {
+      email,
+      passwordHash: hashedPassword,
+      isAdmin: true  // Flag that grants cross-tenant access
+    }
+  });
+
+  await logAdminAction(createdBy, 'create_admin_user', { newUserId: user.id });
+
+  return user;
+}
+```
+
+### Admin Audit Logging
+
+All internal staff actions on tenant data should be logged:
+
+```typescript
+interface AdminAuditLog {
+  adminUserId: string;
+  action: string;
+  targetOrgId?: string;
+  targetUserId?: string;
+  metadata: Record<string, unknown>;
+  timestamp: Date;
 }
 ```
 
@@ -349,7 +497,8 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 
 - Use secure, httpOnly cookies for web sessions
 - JWT tokens should have short expiration (15 min - 1 hour)
-- Include organization context in token claims
+- Include `isAdmin` flag in token claims
+- Include organization context for tenant users
 - Implement token refresh mechanism
 
 ### Rate Limiting
@@ -360,17 +509,26 @@ Apply rate limiting to auth endpoints:
 - Sign in: 10 requests per minute per IP
 - Failed attempts: Lock account after 5 failed attempts
 
+### Internal Staff Security
+
+- Restrict `is_admin` flag modification to database-level or super-admin only
+- Log all admin access to tenant data
+- Consider IP allowlisting for admin access
+- Regular audit of admin user list
+
 ## Implementation Checklist
 
 ### MVP (In Scope)
 
-- [x] User registration with email/password
-- [x] Automatic organization creation on signup
-- [x] Owner role assignment
-- [x] User authentication (sign in)
-- [x] Session management
-- [x] Basic RBAC (owner, admin, member)
-- [x] Protected route middleware
+- [ ] User registration with email/password
+- [ ] Automatic organization creation on signup
+- [ ] Owner role assignment
+- [ ] User authentication (sign in)
+- [ ] Session management
+- [ ] Tenant RBAC (owner, admin, member)
+- [ ] Internal staff flag (`is_admin`)
+- [ ] Admin bypass for tenant RBAC checks
+- [ ] Protected route middleware
 
 ### Future Enhancements (Out of Scope)
 
@@ -383,6 +541,7 @@ Apply rate limiting to auth endpoints:
 - [ ] Two-factor authentication (2FA)
 - [ ] Audit logging
 - [ ] Session management UI
+- [ ] Admin user management UI
 
 ## Environment Variables
 
@@ -419,8 +578,11 @@ app/
 │   │   └── page.tsx
 │   └── signup/
 │       └── page.tsx
-└── (dashboard)/
-    └── [orgSlug]/
+├── (dashboard)/              # Tenant user dashboard
+│   └── [orgSlug]/
+│       └── ...
+└── (admin)/                  # Internal staff dashboard
+    └── support/
         └── ...
 
 lib/
