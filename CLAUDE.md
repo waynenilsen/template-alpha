@@ -2,6 +2,18 @@
 
 Project guidelines for AI assistants working on this codebase.
 
+## Environment Setup (Do This First!)
+
+**This project runs on Claude Code for Web, which starts each session with a fresh checkout.** Dependencies are not pre-installed.
+
+Before doing anything else:
+
+```bash
+bun install        # Always run this first - dependencies won't be there
+```
+
+Don't assume the dev server is running or that anything is set up. Check first, install dependencies, then proceed.
+
 ## Project Overview
 
 This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration kata. It's a work in progress—see README.md for implementation status.
