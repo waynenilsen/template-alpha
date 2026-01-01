@@ -1,3 +1,6 @@
+// Main schema file - generator and datasource config
+// Models are organized in separate .prisma files in this directory
+
 generator client {
   provider = "prisma-client"
   output   = "../lib/generated/prisma"
@@ -5,13 +8,4 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-}
-
-// Example User model - customize as needed
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
