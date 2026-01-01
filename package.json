@@ -6,6 +6,7 @@
     "dev": "next dev --port 58665",
     "build": "next build",
     "start": "next start",
+    "test": "bun test",
     "lint": "biome check",
     "format": "biome format --write",
     "postinstall": "prisma generate",
