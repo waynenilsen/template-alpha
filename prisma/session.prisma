@@ -1,0 +1,18 @@
+// Session-related models
+
+model Session {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  currentOrgId   String?   @map("current_org_id")
+  expiresAt      DateTime  @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  lastAccessedAt DateTime  @default(now()) @map("last_accessed_at")
+
+  // Relations
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentOrg  Organization? @relation(fields: [currentOrgId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "idx_sessions_user")
+  @@index([expiresAt], map: "idx_sessions_expires")
+  @@map("sessions")
+}
