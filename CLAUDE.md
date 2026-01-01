@@ -20,7 +20,7 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router) + React 19
+- **Framework**: Next.js 16 (App Router) + React 19 (dev server on port 58665)
 - **Styling**: Tailwind CSS 4 + shadcn/ui (new-york style)
 - **Database**: PostgreSQL via Docker Compose (port 54673)
 - **Linting/Formatting**: Biome
@@ -35,7 +35,7 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 ## Commands
 
 ```bash
-bun dev          # Start dev server
+bun dev          # Start dev server (port 58665)
 bun build        # Production build
 bun lint         # Run Biome checks
 bun format       # Format with Biome
