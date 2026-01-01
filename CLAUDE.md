@@ -14,9 +14,11 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 - **Linting/Formatting**: Biome
 - **Package Manager**: Bun
 
+### Implemented
+- **Prisma 7** (ORM) with PostgreSQL adapter
+- **tRPC v11** with TanStack Query (new `queryOptions` pattern)
+
 ### Planned (not yet implemented)
-- Prisma (ORM)
-- tRPC (API layer)
 - Home-rolled session auth
 - Multi-tenant data isolation
 
@@ -25,7 +27,8 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 ```bash
 bun dev          # Start dev server
 bun build        # Production build
-bun lint         # Run Biome checks
+bun lint         # Run Biome checks (CI uses this)
+bun lint:fix     # Fix lint issues (imports, rules)
 bun format       # Format with Biome
 docker compose up -d   # Start PostgreSQL
 ```
@@ -59,12 +62,14 @@ Do this:
 Always run the following before committing your final changes:
 
 ```bash
-bun format && git add .
+bun lint:fix && bun format && git add .
 ```
 
-This ensures:
-- Code is properly formatted with Biome
-- All formatted changes are staged for commit
+**Important:** Run both commands in this order:
+1. `bun lint:fix` - Fixes lint issues and organizes imports
+2. `bun format` - Applies code formatting
+
+Running only `bun format` will miss import organization and lint fixes, causing CI to fail.
 
 ## Code Conventions
 
@@ -114,10 +119,13 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:54673/template_alpha"
 - Use soft deletes where appropriate
 - All tenant-scoped models need an `organizationId` field
 
-### When implementing tRPC
-- Router goes in `server/trpc/`
+### tRPC Setup (implemented)
+- Server code lives in `trpc/` directory
+- Uses the **new TanStack Query integration** (v11), not the legacy hooks
+- Client usage: `const trpc = useTRPC(); useQuery(trpc.procedure.queryOptions())`
+- Server-side prefetching available via `trpc/server.tsx`
 - Use Zod for input validation
-- Separate routers by domain (auth, todo, org)
+- Add new procedures to `trpc/router.ts`
 
 ### When implementing Auth
 - Session-based, not JWT
