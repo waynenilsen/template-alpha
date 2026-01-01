@@ -11,6 +11,7 @@ This MVP authentication and authorization system provides:
 - Role-based access control (RBAC) for tenant users
 - Internal staff access via simple admin flag (customer support)
 - Email/password authentication
+- Session-based authentication (no JWTs)
 
 ## User Types
 
@@ -126,6 +127,157 @@ CREATE INDEX idx_org_members_user ON organization_members(user_id);
 CREATE INDEX idx_org_members_org ON organization_members(organization_id);
 ```
 
+### Sessions Table
+
+```sql
+CREATE TABLE sessions (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  current_org_id      UUID REFERENCES organizations(id) ON DELETE SET NULL,
+  expires_at          TIMESTAMP NOT NULL,
+  created_at          TIMESTAMP DEFAULT NOW(),
+  last_accessed_at    TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+```
+
+## Session Management
+
+### Session Architecture
+
+Sessions are stored server-side in the database. The client receives only a session ID via a secure, httpOnly cookie.
+
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│   Browser   │  ──────▶│   Server    │  ──────▶│  Database   │
+│             │         │             │         │             │
+│ Cookie:     │         │ Lookup      │         │ sessions    │
+│ session_id  │         │ session_id  │         │ table       │
+└─────────────┘         └─────────────┘         └─────────────┘
+```
+
+### Session Cookie Configuration
+
+```typescript
+const SESSION_COOKIE_OPTIONS = {
+  name: 'session_id',
+  httpOnly: true,      // Not accessible via JavaScript
+  secure: true,        // HTTPS only (disable for local dev)
+  sameSite: 'lax',     // CSRF protection
+  path: '/',
+  maxAge: 60 * 60 * 24 * 7  // 7 days
+};
+```
+
+### Session Lifecycle
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Session Lifecycle                        │
+└─────────────────────────────────────────────────────────────┘
+
+  Sign In                   Active Use                Sign Out
+     │                          │                         │
+     ▼                          ▼                         ▼
+┌─────────┐              ┌─────────────┐            ┌─────────┐
+│ Create  │              │ Validate &  │            │ Delete  │
+│ session │──────────────│ refresh     │────────────│ session │
+│ record  │              │ expiry      │            │ record  │
+└─────────┘              └─────────────┘            └─────────┘
+     │                          │                         │
+     ▼                          ▼                         ▼
+┌─────────┐              ┌─────────────┐            ┌─────────┐
+│ Set     │              │ Update      │            │ Clear   │
+│ cookie  │              │ last_access │            │ cookie  │
+└─────────┘              └─────────────┘            └─────────┘
+```
+
+### Session Operations
+
+```typescript
+import { cookies } from 'next/headers';
+
+interface Session {
+  id: string;
+  userId: string;
+  currentOrgId: string | null;
+  expiresAt: Date;
+  lastAccessedAt: Date;
+}
+
+// Create a new session
+async function createSession(userId: string, orgId?: string): Promise<Session> {
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  const session = await db.sessions.create({
+    data: {
+      userId,
+      currentOrgId: orgId ?? null,
+      expiresAt
+    }
+  });
+
+  const cookieStore = await cookies();
+  cookieStore.set('session_id', session.id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    expires: expiresAt
+  });
+
+  return session;
+}
+
+// Get current session
+async function getSession(): Promise<Session | null> {
+  const cookieStore = await cookies();
+  const sessionId = cookieStore.get('session_id')?.value;
+
+  if (!sessionId) return null;
+
+  const session = await db.sessions.findUnique({
+    where: { id: sessionId }
+  });
+
+  if (!session || session.expiresAt < new Date()) {
+    // Session expired or not found
+    await destroySession();
+    return null;
+  }
+
+  // Update last accessed time (sliding expiration)
+  await db.sessions.update({
+    where: { id: sessionId },
+    data: { lastAccessedAt: new Date() }
+  });
+
+  return session;
+}
+
+// Destroy session
+async function destroySession(): Promise<void> {
+  const cookieStore = await cookies();
+  const sessionId = cookieStore.get('session_id')?.value;
+
+  if (sessionId) {
+    await db.sessions.delete({ where: { id: sessionId } }).catch(() => {});
+  }
+
+  cookieStore.delete('session_id');
+}
+
+// Switch organization context
+async function switchOrganization(sessionId: string, orgId: string): Promise<void> {
+  await db.sessions.update({
+    where: { id: sessionId },
+    data: { currentOrgId: orgId }
+  });
+}
+```
+
 ## Authentication
 
 ### Sign Up Flow (Tenant Users Only)
@@ -157,8 +309,9 @@ Internal staff cannot self-register. This flow is for tenant users only.
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  7. Generate session/JWT token                              │
-│  8. Return authenticated response                           │
+│  7. Create session record in database                       │
+│  8. Set session_id cookie                                   │
+│  9. Return success response                                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -183,15 +336,32 @@ Internal staff cannot self-register. This flow is for tenant users only.
               ▼             │             ▼
 ┌─────────────────────┐     │   ┌─────────────────────┐
 │   Internal Staff    │     │   │    Tenant User      │
-│   • No org context  │     │   │ • Load memberships  │
-│   • Admin dashboard │     │   │ • Set default org   │
+│ • No org context    │     │   │ • Load memberships  │
+│ • current_org=null  │     │   │ • Set default org   │
 └─────────────────────┘     │   └─────────────────────┘
               │             │             │
               └─────────────┼─────────────┘
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  3. Generate session/JWT token                              │
-│  4. Return authenticated response                           │
+│  3. Create session record in database                       │
+│  4. Set session_id cookie                                   │
+│  5. Return success response                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Sign Out Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Sign Out                             │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  1. Read session_id from cookie                             │
+│  2. Delete session record from database                     │
+│  3. Clear session_id cookie                                 │
+│  4. Return success response                                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -199,7 +369,7 @@ Internal staff cannot self-register. This flow is for tenant users only.
 
 ### POST /api/auth/signup
 
-Create a new tenant user account and organization. Internal staff cannot use this endpoint.
+Create a new tenant user account and organization.
 
 **Request:**
 
@@ -224,10 +394,11 @@ Create a new tenant user account and organization. Internal staff cannot use thi
     "id": "uuid",
     "name": "My Company",
     "slug": "my-company"
-  },
-  "token": "jwt-token"
+  }
 }
 ```
+
+*Session cookie is set automatically via `Set-Cookie` header.*
 
 **Errors:**
 
@@ -266,8 +437,7 @@ Authenticate any user (tenant or internal staff).
       "slug": "my-company",
       "role": "owner"
     }
-  ],
-  "token": "jwt-token"
+  ]
 }
 ```
 
@@ -280,10 +450,11 @@ Authenticate any user (tenant or internal staff).
     "email": "support@ourcompany.com",
     "isAdmin": true
   },
-  "organizations": [],
-  "token": "jwt-token"
+  "organizations": []
 }
 ```
+
+*Session cookie is set automatically via `Set-Cookie` header.*
 
 **Errors:**
 
@@ -303,6 +474,36 @@ End the current session.
 }
 ```
 
+*Session cookie is cleared via `Set-Cookie` header.*
+
+### GET /api/auth/me
+
+Get current authenticated user and session info.
+
+**Response (200 OK):**
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "isAdmin": false
+  },
+  "currentOrganization": {
+    "id": "uuid",
+    "name": "My Company",
+    "slug": "my-company",
+    "role": "owner"
+  }
+}
+```
+
+**Errors:**
+
+| Status | Code           | Description        |
+| ------ | -------------- | ------------------ |
+| 401    | UNAUTHENTICATED| No valid session   |
+
 ## Authorization
 
 ### Authorization Logic
@@ -313,11 +514,16 @@ type AuthResult =
   | { authorized: false; reason: 'unauthenticated' | 'no_membership' | 'insufficient_role' };
 
 async function authorize(
-  userId: string,
   organizationId: string,
   requiredRoles: Role[]
 ): Promise<AuthResult> {
-  const user = await db.users.findUnique({ where: { id: userId } });
+  const session = await getSession();
+
+  if (!session) {
+    return { authorized: false, reason: 'unauthenticated' };
+  }
+
+  const user = await db.users.findUnique({ where: { id: session.userId } });
 
   if (!user) {
     return { authorized: false, reason: 'unauthenticated' };
@@ -331,7 +537,7 @@ async function authorize(
   // Check tenant RBAC
   const membership = await db.organizationMembers.findFirst({
     where: {
-      userId,
+      userId: session.userId,
       organizationId,
       role: { in: requiredRoles }
     }
@@ -354,7 +560,8 @@ async function authorize(
                             │
                             ▼
                 ┌───────────────────────┐
-                │  Valid session/JWT?   │
+                │  Valid session?       │
+                │  (cookie + db lookup) │
                 └───────────┬───────────┘
                             │
               ┌─────────────┼─────────────┐
@@ -397,29 +604,54 @@ owner > admin > member
 ```typescript
 // GET /api/orgs/:orgId/resources
 export async function GET(req: Request, { params }) {
-  const session = await getSession(req);
-
-  if (!session) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const auth = await authorize(
-    session.userId,
-    params.orgId,
-    ['owner', 'admin', 'member']
-  );
+  const auth = await authorize(params.orgId, ['owner', 'admin', 'member']);
 
   if (!auth.authorized) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+    const status = auth.reason === 'unauthenticated' ? 401 : 403;
+    return Response.json({ error: auth.reason }, { status });
   }
 
   // Log if admin accessed tenant data
   if (auth.reason === 'admin') {
-    await logAdminAccess(session.userId, params.orgId, 'read_resources');
+    const session = await getSession();
+    await logAdminAccess(session!.userId, params.orgId, 'read_resources');
   }
 
   // Proceed with request...
 }
+```
+
+### Middleware Example
+
+```typescript
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export async function middleware(request: NextRequest) {
+  const sessionId = request.cookies.get('session_id')?.value;
+
+  // Protected routes
+  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+    if (!sessionId) {
+      return NextResponse.redirect(new URL('/signin', request.url));
+    }
+  }
+
+  // Auth routes (redirect if already logged in)
+  if (request.nextUrl.pathname.startsWith('/signin') ||
+      request.nextUrl.pathname.startsWith('/signup')) {
+    if (sessionId) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/dashboard/:path*', '/signin', '/signup']
+};
 ```
 
 ## Internal Staff Management
@@ -493,13 +725,31 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 }
 ```
 
-### Session/JWT Tokens
+### Session Security
 
-- Use secure, httpOnly cookies for web sessions
-- JWT tokens should have short expiration (15 min - 1 hour)
-- Include `isAdmin` flag in token claims
-- Include organization context for tenant users
-- Implement token refresh mechanism
+- **httpOnly cookies**: Session ID not accessible via JavaScript
+- **Secure flag**: Cookie only sent over HTTPS (in production)
+- **SameSite=Lax**: Protection against CSRF attacks
+- **Server-side storage**: Session data never exposed to client
+- **Sliding expiration**: Session extended on activity
+- **Explicit invalidation**: Session deleted on sign out
+
+### Session Cleanup
+
+Periodically clean up expired sessions:
+
+```typescript
+// Run via cron job or scheduled task
+async function cleanupExpiredSessions(): Promise<number> {
+  const result = await db.sessions.deleteMany({
+    where: {
+      expiresAt: { lt: new Date() }
+    }
+  });
+
+  return result.count;
+}
+```
 
 ### Rate Limiting
 
@@ -523,12 +773,14 @@ Apply rate limiting to auth endpoints:
 - [ ] User registration with email/password
 - [ ] Automatic organization creation on signup
 - [ ] Owner role assignment
-- [ ] User authentication (sign in)
-- [ ] Session management
+- [ ] Session-based authentication
+- [ ] Session storage in database
+- [ ] Secure cookie configuration
 - [ ] Tenant RBAC (owner, admin, member)
 - [ ] Internal staff flag (`is_admin`)
 - [ ] Admin bypass for tenant RBAC checks
 - [ ] Protected route middleware
+- [ ] Session cleanup job
 
 ### Future Enhancements (Out of Scope)
 
@@ -549,13 +801,8 @@ Apply rate limiting to auth endpoints:
 # Database
 DATABASE_URL="postgresql://user:password@localhost:5432/app"
 
-# Auth
-JWT_SECRET="your-secure-secret-key"
-JWT_EXPIRES_IN="1h"
-
 # Session
-SESSION_SECRET="your-session-secret"
-SESSION_MAX_AGE="86400" # 24 hours
+SESSION_MAX_AGE="604800"  # 7 days in seconds
 
 # Security
 BCRYPT_SALT_ROUNDS="12"
@@ -571,7 +818,9 @@ app/
 │       │   └── route.ts
 │       ├── signin/
 │       │   └── route.ts
-│       └── signout/
+│       ├── signout/
+│       │   └── route.ts
+│       └── me/
 │           └── route.ts
 ├── (auth)/
 │   ├── signin/
@@ -587,9 +836,9 @@ app/
 
 lib/
 ├── auth/
-│   ├── session.ts
-│   ├── password.ts
-│   └── middleware.ts
+│   ├── session.ts           # Session CRUD operations
+│   ├── password.ts          # Hashing utilities
+│   └── middleware.ts        # Auth middleware
 └── db/
     └── schema.ts
 ```
