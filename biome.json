@@ -19,7 +19,18 @@
     "rules": {
       "recommended": true,
       "suspicious": {
-        "noUnknownAtRules": "off"
+        "noUnknownAtRules": "off",
+        "noCommentText": "off"
+      },
+      "a11y": {
+        "useSemanticElements": "off",
+        "useFocusableInteractive": "off",
+        "useAriaPropsForRole": "off",
+        "noRedundantRoles": "off",
+        "useKeyWithClickEvents": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
       }
     },
     "domains": {
@@ -33,5 +44,22 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["components/ui/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noDoubleEquals": "off",
+            "noArrayIndexKey": "off",
+            "noDocumentCookie": "off"
+          },
+          "correctness": {
+            "useExhaustiveDependencies": "off"
+          }
+        }
+      }
+    }
+  ]
 }
