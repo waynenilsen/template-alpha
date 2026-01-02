@@ -22,7 +22,7 @@ describe("auth router", () => {
   });
 
   describe("signUp", () => {
-    test("creates a new user and session", async () => {
+    test("creates a new user, organization, and session", async () => {
       const email = `${ctx.prefix}signup-test@example.com`;
       const password = "ValidPass123";
 
@@ -36,9 +36,29 @@ describe("auth router", () => {
       expect(result.session.id).toBeDefined();
       expect(result.session.expiresAt).toBeDefined();
 
+      // Verify organization was created
+      expect(result.organization).toBeDefined();
+      expect(result.organization.id).toBeDefined();
+      expect(result.organization.name).toContain("'s Organization");
+      expect(result.organization.slug).toBeDefined();
+
+      // Verify session has currentOrgId set
+      expect(result.session.currentOrgId).toBe(result.organization.id);
+
+      // Verify user is owner of the organization
+      const membership = await ctx.prisma.organizationMember.findFirst({
+        where: {
+          userId: result.user.id,
+          organizationId: result.organization.id,
+        },
+      });
+      expect(membership).not.toBeNull();
+      expect(membership?.role).toBe("owner");
+
       // Track for cleanup
       ctx.userIds.add(result.user.id);
       ctx.sessionIds.add(result.session.id);
+      ctx.organizationIds.add(result.organization.id);
     });
 
     test("rejects duplicate email", async () => {
@@ -52,6 +72,7 @@ describe("auth router", () => {
       const result = await caller.auth.signUp({ email, password });
       ctx.userIds.add(result.user.id);
       ctx.sessionIds.add(result.session.id);
+      ctx.organizationIds.add(result.organization.id);
 
       // Try to create duplicate
       try {

@@ -43,7 +43,7 @@ const switchOrgInput = z.object({
 export const authRouter = createTRPCRouter({
   /**
    * Sign up a new user
-   * Creates a user account and returns a session
+   * Creates a user account with a personal organization and returns a session
    */
   signUp: publicProcedure
     .input(signUpInput)
@@ -60,17 +60,48 @@ export const authRouter = createTRPCRouter({
         });
       }
 
-      // Hash password and create user
+      // Hash password and create user with organization in a transaction
       const passwordHash = await hashPassword(input.password);
-      const user = await ctx.prisma.user.create({
-        data: {
-          email: input.email,
-          passwordHash,
-        },
-      });
 
-      // Create session for the new user
-      const session = await createSession(ctx.prisma, user.id);
+      const { user, organization, session } = await ctx.prisma.$transaction(
+        async (tx) => {
+          // Create user
+          const newUser = await tx.user.create({
+            data: {
+              email: input.email,
+              passwordHash,
+            },
+          });
+
+          // Generate org name and slug from email
+          const emailPrefix = input.email.split("@")[0];
+          const orgName = `${emailPrefix}'s Organization`;
+          const baseSlug = emailPrefix.toLowerCase().replace(/[^a-z0-9]/g, "-");
+          const uniqueSlug = `${baseSlug}-${newUser.id.slice(-8)}`;
+
+          // Create organization
+          const newOrg = await tx.organization.create({
+            data: {
+              name: orgName,
+              slug: uniqueSlug,
+            },
+          });
+
+          // Create membership with owner role
+          await tx.organizationMember.create({
+            data: {
+              userId: newUser.id,
+              organizationId: newOrg.id,
+              role: "owner",
+            },
+          });
+
+          // Create session with the new org as current
+          const newSession = await createSession(tx, newUser.id, newOrg.id);
+
+          return { user: newUser, organization: newOrg, session: newSession };
+        },
+      );
 
       return {
         user: {
@@ -81,6 +112,12 @@ export const authRouter = createTRPCRouter({
         session: {
           id: session.id,
           expiresAt: session.expiresAt,
+          currentOrgId: session.currentOrgId,
+        },
+        organization: {
+          id: organization.id,
+          name: organization.name,
+          slug: organization.slug,
         },
       };
     }),
