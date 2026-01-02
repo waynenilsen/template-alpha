@@ -26,12 +26,17 @@ export function Dashboard({
   const userRole = currentOrg?.role ?? "member";
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div
+      className="min-h-screen bg-zinc-50 dark:bg-zinc-950"
+      data-testid="dashboard"
+    >
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-white dark:bg-zinc-900">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold">Todo App</h1>
+            <h1 className="text-lg font-semibold" data-testid="dashboard-title">
+              Todo App
+            </h1>
             <OrgPicker
               organizations={organizations}
               currentOrgId={currentOrgId}
@@ -57,7 +62,10 @@ export function Dashboard({
 
 function NoOrganizations() {
   return (
-    <div className="flex min-h-[400px] items-center justify-center">
+    <div
+      className="flex min-h-[400px] items-center justify-center"
+      data-testid="no-organizations"
+    >
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
