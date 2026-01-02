@@ -1,23 +1,42 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { AuthLayout } from "@/components/auth-layout";
 import { LoginForm } from "@/components/login-form";
 import { SocialAuthButtons } from "@/components/social-auth-buttons";
 import { Separator } from "@/components/ui/separator";
+import { signIn } from "@/lib/auth/actions";
 
 export default function SignInPage() {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | undefined>();
 
   const handleSubmit = (data: { email: string; password: string }) => {
-    console.log("Sign in submitted:", data);
+    setError(undefined);
+    startTransition(async () => {
+      const result = await signIn({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (result.success) {
+        router.push(result.redirectTo);
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
+    });
   };
 
   const handleGoogleClick = () => {
+    // TODO: Implement Google OAuth
     console.log("Google sign in clicked");
   };
 
   const handleGitHubClick = () => {
+    // TODO: Implement GitHub OAuth
     console.log("GitHub sign in clicked");
   };
 
@@ -51,6 +70,8 @@ export default function SignInPage() {
           onSubmit={handleSubmit}
           onSignUp={handleSignUp}
           onForgotPassword={handleForgotPassword}
+          isLoading={isPending}
+          error={error}
         />
       </div>
     </AuthLayout>

@@ -6,10 +6,15 @@ import {
   Shield,
   Users,
 } from "lucide-react";
+import Link from "next/link";
+import { Dashboard } from "@/components/dashboard";
 import { LiveStats } from "@/components/live-stats";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getCurrentSession } from "@/lib/auth/actions";
+import { getUserOrganizations } from "@/lib/auth/authorization";
+import { prisma } from "@/lib/db";
 
 const features = [
   {
@@ -47,7 +52,28 @@ const techStack = [
   "shadcn/ui",
 ];
 
-export default function Home() {
+export default async function Home() {
+  // Check if user is authenticated
+  const session = await getCurrentSession();
+
+  if (session) {
+    // Fetch user's organizations
+    const organizations = await getUserOrganizations(prisma, session.user.id);
+
+    return (
+      <Dashboard
+        user={session.user}
+        currentOrgId={session.currentOrgId}
+        organizations={organizations}
+      />
+    );
+  }
+
+  // Show marketing page for unauthenticated users
+  return <MarketingPage />;
+}
+
+function MarketingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-950 dark:to-black">
       {/* Hero Section */}
@@ -64,12 +90,14 @@ export default function Home() {
           to their own tasks.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-4">
-          <Button size="lg" className="gap-2">
-            <CheckCircle2 className="h-5 w-5" />
-            Get Started
+          <Button size="lg" className="gap-2" asChild>
+            <Link href="/sign-up">
+              <CheckCircle2 className="h-5 w-5" />
+              Get Started
+            </Link>
           </Button>
-          <Button size="lg" variant="outline">
-            View Documentation
+          <Button size="lg" variant="outline" asChild>
+            <Link href="/sign-in">Sign In</Link>
           </Button>
         </div>
       </section>

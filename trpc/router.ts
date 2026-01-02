@@ -1,9 +1,4 @@
-import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
-import { hashPassword, passwordSchema } from "../lib/auth/password";
-import { createSession } from "../lib/auth/session";
-import { prisma } from "../lib/db";
-import { sendWelcomeEmail } from "../lib/email";
 import { createTRPCRouter, publicProcedure } from "./init";
 import { authRouter, todoRouter } from "./routers";
 
