@@ -1,4 +1,7 @@
 [test]
+# Run test files in parallel for faster CI
+parallel = true
+
 # Coverage configuration
 # We strive for 100% test coverage - current threshold prevents regression
 # Note: Some code cannot be tested:
