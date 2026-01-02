@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 import { createTRPCRouter, publicProcedure } from "./init";
-import { authRouter, todoRouter } from "./routers";
+import { authRouter, organizationRouter, todoRouter } from "./routers";
 
 /**
  * Main application router
@@ -64,6 +64,11 @@ export const appRouter = createTRPCRouter({
    * Todo router - todo CRUD operations (org-scoped)
    */
   todo: todoRouter,
+
+  /**
+   * Organization router - organization and team management
+   */
+  organization: organizationRouter,
 });
 
 // Export type definition of the API for client usage

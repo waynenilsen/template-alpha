@@ -1,0 +1,23 @@
+// Organization Invitation Token model
+
+model OrganizationInvitation {
+  id             String     @id @default(cuid())
+  organizationId String     @map("organization_id")
+  email          String
+  role           MemberRole @default(member)
+  tokenHash      String     @map("token_hash")
+  invitedById    String     @map("invited_by_id")
+  expiresAt      DateTime   @map("expires_at")
+  acceptedAt     DateTime?  @map("accepted_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([tokenHash], map: "idx_org_invitations_token_hash")
+  @@index([organizationId], map: "idx_org_invitations_org")
+  @@index([expiresAt], map: "idx_org_invitations_expires")
+  @@map("organization_invitations")
+}
