@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { deleteAllMessages, getSubject, waitForEmail } from "./helpers/mailhog";
 
 test.describe("Sign Up Flow", () => {
   test.beforeEach(async ({ page }) => {
+    // Clear all emails before each test
+    await deleteAllMessages();
     await page.goto("/sign-up");
   });
 
@@ -109,9 +112,17 @@ test.describe("Sign Up Flow", () => {
     await expect(page.getByTestId("dashboard")).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId("dashboard-title")).toHaveText("Todo App");
 
-    // New user should see "No Organizations Yet" since they haven't joined any
-    await expect(page.getByTestId("no-organizations")).toBeVisible();
-    await expect(page.getByText("No Organizations Yet")).toBeVisible();
+    // New user should see their auto-created organization with the todo list
+    // The stats section shows "Total", "Completed", "Pending", "Progress"
+    await expect(page.getByText("Total")).toBeVisible();
+    await expect(page.getByText("Pending")).toBeVisible();
+
+    // Verify welcome email was sent
+    const welcomeEmail = await waitForEmail(uniqueEmail, {
+      subjectContains: "Welcome",
+      timeout: 5000,
+    });
+    expect(getSubject(welcomeEmail)).toContain("Welcome to Template Alpha");
   });
 
   test("shows error when trying to sign up with existing email", async ({
