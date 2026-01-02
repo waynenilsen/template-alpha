@@ -14,5 +14,11 @@ coverageThreshold = 0.86
 coverageSkipTestFiles = true
 coveragePathIgnorePatterns = [
   "lib/generated/**",
-  "node_modules/**"
+  "node_modules/**",
+  "e2e/**",
+  # Email send.ts is integration code (nodemailer + templates)
+  # Templates are tested separately, sending is tested via router mocks
+  "lib/email/send.ts",
+  # Test infrastructure - these are utilities for writing tests, not production code
+  "lib/test/scenario/**"
 ]

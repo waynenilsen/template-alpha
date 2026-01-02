@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
 import {
   createTestContext,
@@ -8,6 +8,19 @@ import {
 } from "../../lib/test/harness";
 import { createTestTRPCContext } from "../init";
 import { appRouter } from "../router";
+
+// Track email send calls for verification
+const emailSendCalls: Array<{ email: string; token: string }> = [];
+
+// Mock the email module - must be before any imports that use it
+mock.module("../../lib/email/send", () => ({
+  sendPasswordResetEmail: mock((email: string, token: string) => {
+    emailSendCalls.push({ email, token });
+    return Promise.resolve();
+  }),
+  sendWelcomeEmail: mock(() => Promise.resolve()),
+  sendInvitationEmail: mock(() => Promise.resolve()),
+}));
 
 describe("auth router", () => {
   let ctx: TestContext;
@@ -399,6 +412,196 @@ describe("auth router", () => {
       const result = await caller.auth.getOrganizations();
 
       expect(result).toHaveLength(0);
+    });
+  });
+
+  describe("requestPasswordReset", () => {
+    test("sends password reset email for existing user", async () => {
+      const user = await ctx.createUser();
+      emailSendCalls.length = 0;
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.requestPasswordReset({
+        email: user.email,
+      });
+
+      expect(result.success).toBe(true);
+      expect(emailSendCalls).toHaveLength(1);
+      expect(emailSendCalls[0].email).toBe(user.email);
+      expect(emailSendCalls[0].token).toBeDefined();
+
+      // Cleanup tokens
+      const tokens = await ctx.prisma.passwordResetToken.findMany({
+        where: { userId: user.id },
+      });
+      for (const token of tokens) {
+        ctx.passwordResetTokenIds.add(token.id);
+      }
+    });
+
+    test("returns success but does not send email for non-existent user", async () => {
+      emailSendCalls.length = 0;
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.requestPasswordReset({
+        email: "nonexistent@example.com",
+      });
+
+      // Returns success to prevent email enumeration
+      expect(result.success).toBe(true);
+      expect(emailSendCalls).toHaveLength(0);
+    });
+  });
+
+  describe("validateResetToken", () => {
+    test("returns valid for valid token", async () => {
+      const user = await ctx.createUser();
+      const { plainToken } = await ctx.createPasswordResetToken({
+        userId: user.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.validateResetToken({
+        token: plainToken,
+      });
+
+      expect(result.valid).toBe(true);
+    });
+
+    test("returns invalid for non-existent token", async () => {
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.validateResetToken({
+        token: "invalid-token",
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("invalid_token");
+    });
+
+    test("returns invalid for expired token", async () => {
+      const user = await ctx.createUser();
+      const { plainToken } = await ctx.createPasswordResetToken({
+        userId: user.id,
+        expiresAt: new Date(Date.now() - 1000),
+      });
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.validateResetToken({
+        token: plainToken,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("expired_token");
+    });
+
+    test("returns invalid for used token", async () => {
+      const user = await ctx.createUser();
+      const { plainToken } = await ctx.createPasswordResetToken({
+        userId: user.id,
+        usedAt: new Date(),
+      });
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.validateResetToken({
+        token: plainToken,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("used_token");
+    });
+  });
+
+  describe("resetPassword", () => {
+    test("resets password with valid token", async () => {
+      const user = await ctx.createUser({ password: "OldPassword123" });
+      const { plainToken } = await ctx.createPasswordResetToken({
+        userId: user.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.resetPassword({
+        token: plainToken,
+        password: "NewPassword456",
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    test("throws error for invalid token", async () => {
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.auth.resetPassword({
+          token: "invalid-token",
+          password: "NewPassword456",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("BAD_REQUEST");
+        expect((error as TRPCError).message).toContain("Invalid");
+      }
+    });
+
+    test("throws error for expired token", async () => {
+      const user = await ctx.createUser();
+      const { plainToken } = await ctx.createPasswordResetToken({
+        userId: user.id,
+        expiresAt: new Date(Date.now() - 1000),
+      });
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.auth.resetPassword({
+          token: plainToken,
+          password: "NewPassword456",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("BAD_REQUEST");
+        expect((error as TRPCError).message).toContain("expired");
+      }
+    });
+
+    test("throws error for already used token", async () => {
+      const user = await ctx.createUser();
+      const { plainToken } = await ctx.createPasswordResetToken({
+        userId: user.id,
+        usedAt: new Date(),
+      });
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.auth.resetPassword({
+          token: plainToken,
+          password: "NewPassword456",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("BAD_REQUEST");
+        expect((error as TRPCError).message).toContain("already been used");
+      }
     });
   });
 });
