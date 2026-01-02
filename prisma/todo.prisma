@@ -1,0 +1,21 @@
+// Todo model for the task management feature
+
+model Todo {
+  id             String       @id @default(cuid())
+  title          String
+  description    String?
+  completed      Boolean      @default(false)
+  organizationId String       @map("organization_id")
+  createdById    String       @map("created_by_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId], map: "idx_todos_org")
+  @@index([createdById], map: "idx_todos_created_by")
+  @@index([organizationId, completed], map: "idx_todos_org_completed")
+  @@map("todos")
+}

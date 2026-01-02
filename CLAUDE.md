@@ -29,10 +29,11 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 ### Implemented
 - **Prisma 7** (ORM) with PostgreSQL adapter
 - **tRPC v11** with TanStack Query (new `queryOptions` pattern)
+- **Session-based auth** with RBAC (owner/admin/member roles)
+- **Multi-tenant data isolation** via organization-scoped procedures
 
 ### Planned (not yet implemented)
-- Home-rolled session auth
-- Multi-tenant data isolation
+- Frontend auth flows (login/signup pages)
 
 ## Commands
 
@@ -201,12 +202,77 @@ PostgreSQL connection for when Prisma is added:
 DATABASE_URL="postgresql://postgres:postgres@localhost:54673/template_alpha"
 ```
 
+## Testing
+
+Run tests with:
+
+```bash
+bun test           # Run all tests
+bun test <file>    # Run specific test file
+```
+
+### Testing Philosophy
+
+**NEVER mock the database.** All tests run against a real PostgreSQL instance. This ensures:
+- Tests catch real database issues (constraints, migrations, performance)
+- No false confidence from mocked behavior
+- Integration issues are caught early
+
+### Test Harness
+
+Use the test harness in `lib/test/harness.ts`:
+
+```typescript
+import { createTestContext, withTestContext } from "../lib/test/harness";
+
+// Option 1: Manual cleanup
+const ctx = createTestContext();
+const user = await ctx.createUser();
+const org = await ctx.createOrganization();
+await ctx.cleanup(); // Always cleanup
+
+// Option 2: Auto-cleanup wrapper
+await withTestContext(async (ctx) => {
+  const user = await ctx.createUser();
+  // cleanup happens automatically
+});
+```
+
+Available factories:
+- `ctx.createUser(options?)` - Creates a user with hashed password
+- `ctx.createOrganization(options?)` - Creates an organization
+- `ctx.createMembership(options)` - Creates org membership
+- `ctx.createSession(options)` - Creates a session
+- `ctx.createTodo(options)` - Creates a todo
+- `ctx.createUserWithOrg(options?)` - Creates user + org + membership
+- `ctx.signIn(user, orgId?)` - Creates a session for user
+
+### Testing tRPC Procedures
+
+```typescript
+import { createTestTRPCContext } from "../trpc/init";
+import { appRouter } from "../trpc/router";
+
+// Unauthenticated caller
+const ctx = createTestTRPCContext({ prisma: testCtx.prisma });
+const caller = appRouter.createCaller(ctx);
+
+// Authenticated caller
+const ctx = createTestTRPCContext({
+  prisma: testCtx.prisma,
+  sessionId: session.id,
+  session,
+  user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+});
+const caller = appRouter.createCaller(ctx);
+```
+
 ## Architecture Notes
 
-### When implementing Prisma
-- Schema should include: User, Organization, Membership, Todo
-- Use soft deletes where appropriate
-- All tenant-scoped models need an `organizationId` field
+### Prisma Schema
+- Models: User, Organization, OrganizationMember, Session, Todo
+- All tenant-scoped models have an `organizationId` field
+- Cascade deletes configured for proper cleanup
 
 ### tRPC Setup (implemented)
 - Server code lives in `trpc/` directory
@@ -214,9 +280,22 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:54673/template_alpha"
 - Client usage: `const trpc = useTRPC(); useQuery(trpc.procedure.queryOptions())`
 - Server-side prefetching available via `trpc/server.tsx`
 - Use Zod for input validation
-- Add new procedures to `trpc/router.ts`
+- Routers are in `trpc/routers/` - add new routers there and merge in `trpc/router.ts`
 
-### When implementing Auth
-- Session-based, not JWT
-- Store sessions in database
-- No third-party auth providers—keep it simple
+### Procedure Types
+- `publicProcedure` - No auth required
+- `protectedProcedure` - Requires authenticated session
+- `orgProcedure` - Requires auth + active organization context
+
+### Auth System (implemented)
+- Session-based authentication (not JWT)
+- Sessions stored in database with 7-day expiry
+- RBAC with role hierarchy: `owner > admin > member`
+- Internal admin flag (`isAdmin`) bypasses tenant RBAC
+- Auth procedures: `auth.signUp`, `auth.signIn`, `auth.signOut`, `auth.me`, `auth.switchOrg`
+
+### Todo Resource (implemented)
+- Organization-scoped (uses `orgProcedure`)
+- CRUD operations: `todo.create`, `todo.get`, `todo.list`, `todo.update`, `todo.delete`
+- Additional: `todo.toggleComplete`, `todo.stats`
+- Delete restricted to admin role or higher

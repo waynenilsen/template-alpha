@@ -11,6 +11,7 @@ model User {
   // Relations
   memberships OrganizationMember[]
   sessions    Session[]
+  todos       Todo[]
 
   @@index([email])
   @@index([isAdmin], map: "idx_users_is_admin")

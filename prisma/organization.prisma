@@ -10,6 +10,7 @@ model Organization {
   // Relations
   members  OrganizationMember[]
   sessions Session[]
+  todos    Todo[]
 
   @@index([slug])
   @@map("organizations")

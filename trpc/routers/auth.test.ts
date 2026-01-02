@@ -1,0 +1,383 @@
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { TRPCError } from "@trpc/server";
+import {
+  createTestContext,
+  createTestUserWithPassword,
+  disconnectTestPrisma,
+  type TestContext,
+} from "../../lib/test/harness";
+import { createTestTRPCContext } from "../init";
+import { appRouter } from "../router";
+
+describe("auth router", () => {
+  let ctx: TestContext;
+
+  beforeAll(() => {
+    ctx = createTestContext();
+  });
+
+  afterAll(async () => {
+    await ctx.cleanup();
+    await disconnectTestPrisma();
+  });
+
+  describe("signUp", () => {
+    test("creates a new user and session", async () => {
+      const email = `${ctx.prefix}signup-test@example.com`;
+      const password = "ValidPass123";
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.signUp({ email, password });
+
+      expect(result.user.email).toBe(email);
+      expect(result.user.isAdmin).toBe(false);
+      expect(result.session.id).toBeDefined();
+      expect(result.session.expiresAt).toBeDefined();
+
+      // Track for cleanup
+      ctx.userIds.add(result.user.id);
+      ctx.sessionIds.add(result.session.id);
+    });
+
+    test("rejects duplicate email", async () => {
+      const email = `${ctx.prefix}duplicate-test@example.com`;
+      const password = "ValidPass123";
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      // Create first user
+      const result = await caller.auth.signUp({ email, password });
+      ctx.userIds.add(result.user.id);
+      ctx.sessionIds.add(result.session.id);
+
+      // Try to create duplicate
+      try {
+        await caller.auth.signUp({ email, password });
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("CONFLICT");
+      }
+    });
+
+    test("rejects weak password", async () => {
+      const email = `${ctx.prefix}weak-pass@example.com`;
+      const password = "weak";
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.auth.signUp({ email, password });
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("BAD_REQUEST");
+      }
+    });
+  });
+
+  describe("signIn", () => {
+    test("signs in with valid credentials", async () => {
+      const { user, password } = await createTestUserWithPassword(ctx);
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.signIn({
+        email: user.email,
+        password,
+      });
+
+      expect(result.user.id).toBe(user.id);
+      expect(result.user.email).toBe(user.email);
+      expect(result.session.id).toBeDefined();
+      expect(result.organizations).toEqual([]);
+
+      ctx.sessionIds.add(result.session.id);
+    });
+
+    test("sets default org when user has only one", async () => {
+      const { user, password } = await createTestUserWithPassword(ctx);
+      const org = await ctx.createOrganization();
+      await ctx.createMembership({
+        userId: user.id,
+        organizationId: org.id,
+        role: "owner",
+      });
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.signIn({
+        email: user.email,
+        password,
+      });
+
+      expect(result.session.currentOrgId).toBe(org.id);
+      expect(result.organizations).toHaveLength(1);
+      expect(result.organizations[0].id).toBe(org.id);
+
+      ctx.sessionIds.add(result.session.id);
+    });
+
+    test("rejects invalid password", async () => {
+      const { user } = await createTestUserWithPassword(ctx);
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.auth.signIn({
+          email: user.email,
+          password: "WrongPassword123",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("UNAUTHORIZED");
+      }
+    });
+
+    test("rejects non-existent email", async () => {
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.auth.signIn({
+          email: "nonexistent@example.com",
+          password: "SomePassword123",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("UNAUTHORIZED");
+      }
+    });
+  });
+
+  describe("signOut", () => {
+    test("invalidates the session", async () => {
+      const user = await ctx.createUser();
+      const session = await ctx.createSession({ userId: user.id });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.signOut();
+      expect(result.success).toBe(true);
+
+      // Session should be deleted
+      const deletedSession = await ctx.prisma.session.findUnique({
+        where: { id: session.id },
+      });
+      expect(deletedSession).toBeNull();
+    });
+
+    test("requires authentication", async () => {
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.auth.signOut();
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("UNAUTHORIZED");
+      }
+    });
+  });
+
+  describe("me", () => {
+    test("returns current user info", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.me();
+
+      expect(result.user.id).toBe(user.id);
+      expect(result.user.email).toBe(user.email);
+      expect(result.session.currentOrgId).toBe(organization.id);
+      expect(result.organizations).toHaveLength(1);
+      expect(result.organizations[0].id).toBe(organization.id);
+    });
+
+    test("requires authentication", async () => {
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.auth.me();
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("UNAUTHORIZED");
+      }
+    });
+  });
+
+  describe("switchOrg", () => {
+    test("switches to a valid organization", async () => {
+      const user = await ctx.createUser();
+      const org1 = await ctx.createOrganization();
+      const org2 = await ctx.createOrganization();
+      await ctx.createMembership({
+        userId: user.id,
+        organizationId: org1.id,
+        role: "member",
+      });
+      await ctx.createMembership({
+        userId: user.id,
+        organizationId: org2.id,
+        role: "member",
+      });
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: org1.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.switchOrg({ organizationId: org2.id });
+
+      expect(result.success).toBe(true);
+      expect(result.currentOrgId).toBe(org2.id);
+    });
+
+    test("clears organization with null", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.switchOrg({ organizationId: null });
+
+      expect(result.success).toBe(true);
+      expect(result.currentOrgId).toBeNull();
+    });
+
+    test("rejects non-member organization", async () => {
+      const user = await ctx.createUser();
+      const org = await ctx.createOrganization();
+      const session = await ctx.createSession({ userId: user.id });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.auth.switchOrg({ organizationId: org.id });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("FORBIDDEN");
+      }
+    });
+
+    test("allows admin to switch to any organization", async () => {
+      const user = await ctx.createUser({ isAdmin: true });
+      const org = await ctx.createOrganization();
+      const session = await ctx.createSession({ userId: user.id });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.switchOrg({ organizationId: org.id });
+
+      expect(result.success).toBe(true);
+      expect(result.currentOrgId).toBe(org.id);
+    });
+  });
+
+  describe("getOrganizations", () => {
+    test("returns user organizations", async () => {
+      const user = await ctx.createUser();
+      const org1 = await ctx.createOrganization();
+      const org2 = await ctx.createOrganization();
+      await ctx.createMembership({
+        userId: user.id,
+        organizationId: org1.id,
+        role: "owner",
+      });
+      await ctx.createMembership({
+        userId: user.id,
+        organizationId: org2.id,
+        role: "member",
+      });
+      const session = await ctx.createSession({ userId: user.id });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.getOrganizations();
+
+      expect(result).toHaveLength(2);
+      expect(result.map((o) => o.id).sort()).toEqual([org1.id, org2.id].sort());
+    });
+
+    test("returns empty array for user without orgs", async () => {
+      const user = await ctx.createUser();
+      const session = await ctx.createSession({ userId: user.id });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.getOrganizations();
+
+      expect(result).toHaveLength(0);
+    });
+  });
+});
