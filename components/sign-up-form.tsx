@@ -53,12 +53,18 @@ export function SignUpForm({
       <form onSubmit={handleSubmit}>
         <CardContent className="grid gap-4">
           {error && (
-            <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+            <div
+              className="rounded-md bg-destructive/15 p-3 text-sm text-destructive"
+              data-testid="signup-error"
+            >
               {error}
             </div>
           )}
           {passwordMismatch && (
-            <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+            <div
+              className="rounded-md bg-destructive/15 p-3 text-sm text-destructive"
+              data-testid="password-mismatch-error"
+            >
               Passwords do not match
             </div>
           )}
@@ -72,6 +78,7 @@ export function SignUpForm({
               onChange={(e) => setName(e.target.value)}
               required
               disabled={isLoading}
+              data-testid="signup-name-input"
             />
           </div>
           <div className="grid gap-2">
@@ -84,6 +91,7 @@ export function SignUpForm({
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={isLoading}
+              data-testid="signup-email-input"
             />
           </div>
           <div className="grid gap-2">
@@ -95,6 +103,7 @@ export function SignUpForm({
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={isLoading}
+              data-testid="signup-password-input"
             />
           </div>
           <div className="grid gap-2">
@@ -109,11 +118,17 @@ export function SignUpForm({
               }}
               required
               disabled={isLoading}
+              data-testid="signup-confirm-password-input"
             />
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isLoading}
+            data-testid="signup-submit-button"
+          >
             {isLoading ? "Creating account..." : "Sign up"}
           </Button>
           {onSignIn && (
@@ -123,6 +138,7 @@ export function SignUpForm({
                 type="button"
                 onClick={onSignIn}
                 className="underline underline-offset-4 hover:text-primary"
+                data-testid="signin-link"
               >
                 Sign in
               </button>
