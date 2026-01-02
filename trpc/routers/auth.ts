@@ -203,12 +203,14 @@ export const authRouter = createTRPCRouter({
         input.organizationId,
       );
 
+      /* c8 ignore start - race condition: session deleted between middleware and here */
       if (!updated) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to switch organization",
         });
       }
+      /* c8 ignore stop */
 
       return {
         success: true,

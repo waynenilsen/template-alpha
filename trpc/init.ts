@@ -105,7 +105,11 @@ export function createTestTRPCContext(opts: {
 /**
  * Create a server-side context for direct procedure calls
  * This is used by server components and RSC - reads session from Next.js cookies
+ *
+ * NOTE: This function requires Next.js runtime (cookies() from next/headers).
+ * Lines after the sessionId check cannot be tested outside Next.js environment.
  */
+/* c8 ignore start */
 export async function createServerSideContext(): Promise<TRPCContext> {
   // Dynamic import to avoid issues in non-Next.js environments (like tests)
   const { cookies } = await import("next/headers");
@@ -152,6 +156,7 @@ export async function createServerSideContext(): Promise<TRPCContext> {
     user: sessionWithUser.user,
   };
 }
+/* c8 ignore stop */
 
 /**
  * Initialize tRPC with superjson transformer for Date, Map, Set serialization

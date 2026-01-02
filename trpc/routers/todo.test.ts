@@ -455,6 +455,57 @@ describe("todo router", () => {
         expect((error as TRPCError).code).toBe("FORBIDDEN");
       }
     });
+
+    test("returns 404 for non-existent todo", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      const caller = createOrgCaller(
+        { id: user.id, email: user.email, isAdmin: user.isAdmin },
+        session,
+      );
+
+      try {
+        await caller.todo.update({
+          id: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+          title: "Updated",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("NOT_FOUND");
+      }
+    });
+
+    test("allows internal admin to update any todo", async () => {
+      const { user: regularUser, organization } = await ctx.createUserWithOrg();
+      const todo = await ctx.createTodo({
+        title: "Original",
+        organizationId: organization.id,
+        createdById: regularUser.id,
+      });
+
+      const admin = await ctx.createUser({ isAdmin: true });
+      const adminOrg = await ctx.createOrganization();
+      const session = await ctx.createSession({
+        userId: admin.id,
+        currentOrgId: adminOrg.id,
+      });
+
+      const caller = createOrgCaller(
+        { id: admin.id, email: admin.email, isAdmin: admin.isAdmin },
+        session,
+      );
+
+      const result = await caller.todo.update({
+        id: todo.id,
+        title: "Admin Updated",
+      });
+      expect(result.title).toBe("Admin Updated");
+    });
   });
 
   describe("delete", () => {
@@ -566,6 +617,59 @@ describe("todo router", () => {
       const result = await caller.todo.delete({ id: todo.id });
       expect(result.success).toBe(true);
     });
+
+    test("returns 404 for non-existent todo", async () => {
+      const { user, organization } = await ctx.createUserWithOrg({
+        role: "admin",
+      });
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      const caller = createOrgCaller(
+        { id: user.id, email: user.email, isAdmin: user.isAdmin },
+        session,
+      );
+
+      try {
+        await caller.todo.delete({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("NOT_FOUND");
+      }
+    });
+
+    test("denies delete to todo from another organization", async () => {
+      const { user: user1, organization: org1 } = await ctx.createUserWithOrg();
+      const todo = await ctx.createTodo({
+        title: "Org1 Todo",
+        organizationId: org1.id,
+        createdById: user1.id,
+      });
+
+      const { user: user2, organization: org2 } = await ctx.createUserWithOrg({
+        role: "admin",
+      });
+      const session = await ctx.createSession({
+        userId: user2.id,
+        currentOrgId: org2.id,
+      });
+
+      const caller = createOrgCaller(
+        { id: user2.id, email: user2.email, isAdmin: user2.isAdmin },
+        session,
+      );
+
+      try {
+        await caller.todo.delete({ id: todo.id });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("FORBIDDEN");
+      }
+    });
   });
 
   describe("toggleComplete", () => {
@@ -611,6 +715,80 @@ describe("todo router", () => {
 
       const result = await caller.todo.toggleComplete({ id: todo.id });
       expect(result.completed).toBe(false);
+    });
+
+    test("returns 404 for non-existent todo", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      const caller = createOrgCaller(
+        { id: user.id, email: user.email, isAdmin: user.isAdmin },
+        session,
+      );
+
+      try {
+        await caller.todo.toggleComplete({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("NOT_FOUND");
+      }
+    });
+
+    test("denies toggle for todo from another organization", async () => {
+      const { user: user1, organization: org1 } = await ctx.createUserWithOrg();
+      const todo = await ctx.createTodo({
+        title: "Org1 Todo",
+        organizationId: org1.id,
+        createdById: user1.id,
+      });
+
+      const { user: user2, organization: org2 } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user2.id,
+        currentOrgId: org2.id,
+      });
+
+      const caller = createOrgCaller(
+        { id: user2.id, email: user2.email, isAdmin: user2.isAdmin },
+        session,
+      );
+
+      try {
+        await caller.todo.toggleComplete({ id: todo.id });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("FORBIDDEN");
+      }
+    });
+
+    test("allows internal admin to toggle any todo", async () => {
+      const { user: regularUser, organization } = await ctx.createUserWithOrg();
+      const todo = await ctx.createTodo({
+        title: "Admin Toggle",
+        completed: false,
+        organizationId: organization.id,
+        createdById: regularUser.id,
+      });
+
+      const admin = await ctx.createUser({ isAdmin: true });
+      const adminOrg = await ctx.createOrganization();
+      const session = await ctx.createSession({
+        userId: admin.id,
+        currentOrgId: adminOrg.id,
+      });
+
+      const caller = createOrgCaller(
+        { id: admin.id, email: admin.email, isAdmin: admin.isAdmin },
+        session,
+      );
+
+      const result = await caller.todo.toggleComplete({ id: todo.id });
+      expect(result.completed).toBe(true);
     });
   });
 
