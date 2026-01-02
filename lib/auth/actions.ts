@@ -62,17 +62,46 @@ export async function signUp(data: {
     };
   }
 
-  // Hash password and create user
+  // Hash password and create user with organization in a transaction
   const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: {
-      email,
-      passwordHash,
-    },
-  });
 
-  // Create session for the new user
-  const session = await createSession(prisma, user.id);
+  const { session } = await prisma.$transaction(async (tx) => {
+    // Create user
+    const newUser = await tx.user.create({
+      data: {
+        email,
+        passwordHash,
+      },
+    });
+
+    // Generate org name and slug from email
+    const emailPrefix = email.split("@")[0];
+    const orgName = `${emailPrefix}'s Organization`;
+    const baseSlug = emailPrefix.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const uniqueSlug = `${baseSlug}-${newUser.id.slice(-8)}`;
+
+    // Create organization
+    const newOrg = await tx.organization.create({
+      data: {
+        name: orgName,
+        slug: uniqueSlug,
+      },
+    });
+
+    // Create membership with owner role
+    await tx.organizationMember.create({
+      data: {
+        userId: newUser.id,
+        organizationId: newOrg.id,
+        role: "owner",
+      },
+    });
+
+    // Create session with the new org as current
+    const newSession = await createSession(tx, newUser.id, newOrg.id);
+
+    return { user: newUser, organization: newOrg, session: newSession };
+  });
 
   // Set session cookie
   const cookieStore = await cookies();
