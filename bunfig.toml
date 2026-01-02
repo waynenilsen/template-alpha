@@ -4,6 +4,7 @@
 # Note: Some code cannot be tested:
 # - createServerSideContext requires Next.js runtime (cookies() from next/headers)
 # - auth.switchOrg failure case requires race condition (session deleted between middleware and call)
+# - xscenario/fscenario are test utilities that use test.skip/test.only
 coverageThreshold = 0.86
 
 # Exclude test files and generated code from coverage calculation
