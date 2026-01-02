@@ -6,6 +6,7 @@ import {
   Shield,
   Users,
 } from "lucide-react";
+import { LiveStats } from "@/components/live-stats";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +82,13 @@ export default function Home() {
               {tech}
             </Badge>
           ))}
+        </div>
+      </section>
+
+      {/* Live Stats - tRPC Proof of Concept */}
+      <section className="container mx-auto px-6 py-8">
+        <div className="mx-auto max-w-2xl">
+          <LiveStats />
         </div>
       </section>
 
