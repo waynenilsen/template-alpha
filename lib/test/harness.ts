@@ -14,10 +14,12 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { hashPassword } from "../auth/password";
+import { generateResetToken, hashResetToken } from "../auth/password-reset";
 import {
   type MemberRole,
   type Organization,
   type OrganizationMember,
+  type PasswordResetToken,
   PrismaClient,
   type Session,
   type Todo,
@@ -80,6 +82,7 @@ export interface TestContext {
   membershipIds: Set<string>;
   sessionIds: Set<string>;
   todoIds: Set<string>;
+  passwordResetTokenIds: Set<string>;
 
   // Factory methods
   createUser: (options?: CreateUserOptions) => Promise<User>;
@@ -91,6 +94,9 @@ export interface TestContext {
   ) => Promise<OrganizationMember>;
   createSession: (options: CreateSessionOptions) => Promise<Session>;
   createTodo: (options: CreateTodoOptions) => Promise<Todo>;
+  createPasswordResetToken: (
+    options: CreatePasswordResetTokenOptions,
+  ) => Promise<PasswordResetTokenWithPlainToken>;
 
   // Convenience methods
   createUserWithOrg: (
@@ -133,6 +139,17 @@ export interface CreateTodoOptions {
   createdById: string;
 }
 
+export interface CreatePasswordResetTokenOptions {
+  userId: string;
+  expiresAt?: Date;
+  usedAt?: Date | null;
+}
+
+export interface PasswordResetTokenWithPlainToken {
+  token: PasswordResetToken;
+  plainToken: string;
+}
+
 export interface CreateUserWithOrgOptions {
   email?: string;
   password?: string;
@@ -159,6 +176,7 @@ export function createTestContext(): TestContext {
   const membershipIds = new Set<string>();
   const sessionIds = new Set<string>();
   const todoIds = new Set<string>();
+  const passwordResetTokenIds = new Set<string>();
 
   const createUser = async (options: CreateUserOptions = {}): Promise<User> => {
     const uniqueId = generateUniqueId();
@@ -244,6 +262,27 @@ export function createTestContext(): TestContext {
     return todo;
   };
 
+  const createPasswordResetToken = async (
+    options: CreatePasswordResetTokenOptions,
+  ): Promise<PasswordResetTokenWithPlainToken> => {
+    const plainToken = generateResetToken();
+    const tokenHash = hashResetToken(plainToken);
+    const expiresAt =
+      options.expiresAt ?? new Date(Date.now() + 60 * 60 * 1000); // 1 hour default
+
+    const token = await prisma.passwordResetToken.create({
+      data: {
+        userId: options.userId,
+        tokenHash,
+        expiresAt,
+        usedAt: options.usedAt ?? null,
+      },
+    });
+
+    passwordResetTokenIds.add(token.id);
+    return { token, plainToken };
+  };
+
   const createUserWithOrg = async (
     options: CreateUserWithOrgOptions = {},
   ): Promise<UserWithOrg> => {
@@ -290,6 +329,13 @@ export function createTestContext(): TestContext {
       });
     }
 
+    // Password reset tokens (depend on users)
+    if (passwordResetTokenIds.size > 0) {
+      await prisma.passwordResetToken.deleteMany({
+        where: { id: { in: Array.from(passwordResetTokenIds) } },
+      });
+    }
+
     // Memberships next (depend on users and orgs)
     if (membershipIds.size > 0) {
       await prisma.organizationMember.deleteMany({
@@ -320,11 +366,13 @@ export function createTestContext(): TestContext {
     membershipIds,
     sessionIds,
     todoIds,
+    passwordResetTokenIds,
     createUser,
     createOrganization,
     createMembership,
     createSession,
     createTodo,
+    createPasswordResetToken,
     createUserWithOrg,
     signIn,
     cleanup,
