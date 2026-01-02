@@ -13,6 +13,7 @@
     "lint:fix": "biome check --write",
     "format": "biome format --write",
     "postinstall": "prisma generate",
+    "db:start": "./scripts/setup-postgres.sh",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",

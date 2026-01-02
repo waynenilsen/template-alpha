@@ -10,9 +10,12 @@ Before doing anything else:
 
 ```bash
 bun install        # Always run this first - dependencies won't be there
+bun db:start       # Start PostgreSQL (works with or without Docker)
 ```
 
 Don't assume the dev server is running or that anything is set up. Check first, install dependencies, then proceed.
+
+**Note:** Claude Code for Web does not have Docker installed. The `bun db:start` script automatically detects this and installs/configures PostgreSQL locally instead.
 
 ## Project Overview
 
@@ -22,7 +25,7 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 
 - **Framework**: Next.js 16 (App Router) + React 19 (dev server on port 58665)
 - **Styling**: Tailwind CSS 4 + shadcn/ui (new-york style)
-- **Database**: PostgreSQL via Docker Compose (port 54673)
+- **Database**: PostgreSQL (port 54673) - Docker or local install via `bun db:start`
 - **Linting/Formatting**: Biome
 - **Package Manager**: Bun
 
@@ -45,7 +48,7 @@ bun typecheck      # TypeScript type checking (CI uses this)
 bun lint           # Run Biome checks (CI uses this)
 bun lint:fix       # Fix lint issues (imports, rules)
 bun format         # Format with Biome
-docker compose up -d   # Start PostgreSQL
+bun db:start       # Start PostgreSQL (auto-detects Docker vs local)
 ```
 
 ## Testing
@@ -195,8 +198,19 @@ bunx shadcn@latest add [component-name]
 
 ## Database
 
-PostgreSQL connection for when Prisma is added:
+```bash
+bun db:start  # Start PostgreSQL
+```
 
+The `db:start` script handles PostgreSQL setup automatically:
+
+| Environment | Behavior |
+|-------------|----------|
+| **Docker available** | Runs `docker compose up -d postgres` |
+| **No Docker** (Claude Code Web) | Installs PostgreSQL locally, configures port 54673, creates database |
+| **CI** (GitHub Actions) | Skips entirely—CI uses the `services` block for PostgreSQL |
+
+Connection string (same in all environments):
 ```
 DATABASE_URL="postgresql://postgres:postgres@localhost:54673/template_alpha"
 ```
