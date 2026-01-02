@@ -3,9 +3,14 @@
 import { cookies } from "next/headers";
 import { z } from "zod/v4";
 import { prisma } from "../db";
-import { sendWelcomeEmail } from "../email";
+import { sendPasswordResetEmail, sendWelcomeEmail } from "../email";
 import { getUserOrganizations } from "./authorization";
 import { hashPassword, passwordSchema, verifyPassword } from "./password";
+import {
+  requestPasswordReset as requestReset,
+  resetPassword as resetPwd,
+  validateResetToken,
+} from "./password-reset";
 import {
   createSession,
   deleteSession,
@@ -224,4 +229,113 @@ export async function getCurrentSession() {
   }
 
   return session;
+}
+
+/**
+ * Request password reset input validation
+ */
+const requestPasswordResetSchema = z.object({
+  email: z.email("Invalid email address"),
+});
+
+/**
+ * Reset password input validation
+ */
+const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  password: passwordSchema,
+});
+
+export type PasswordResetResult =
+  | { success: true }
+  | { success: false; error: string };
+
+/**
+ * Server action to request a password reset email
+ * Always returns success to prevent email enumeration
+ */
+export async function requestPasswordReset(data: {
+  email: string;
+}): Promise<PasswordResetResult> {
+  // Validate input
+  const parsed = requestPasswordResetSchema.safeParse(data);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
+  }
+
+  const { email } = parsed.data;
+
+  const result = await requestReset(prisma, email);
+
+  // If user exists, send the email
+  if (result.success) {
+    await sendPasswordResetEmail(email, result.token);
+  }
+
+  // Always return success to prevent email enumeration
+  return { success: true };
+}
+
+/**
+ * Server action to reset password with a valid token
+ */
+export async function resetPassword(data: {
+  token: string;
+  password: string;
+}): Promise<PasswordResetResult> {
+  // Validate input
+  const parsed = resetPasswordSchema.safeParse(data);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
+  }
+
+  const { token, password } = parsed.data;
+
+  const result = await resetPwd(prisma, token, password);
+
+  if (!result.success) {
+    const errorMessages: Record<string, string> = {
+      invalid_token: "Invalid or expired reset link",
+      expired_token: "This reset link has expired",
+      used_token: "This reset link has already been used",
+      user_not_found: "Unable to reset password",
+    };
+    return {
+      success: false,
+      error: errorMessages[result.error] ?? "Unable to reset password",
+    };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Server action to validate a reset token
+ */
+export async function checkResetToken(token: string): Promise<{
+  valid: boolean;
+  error?: string;
+}> {
+  if (!token) {
+    return { valid: false, error: "Token is required" };
+  }
+
+  const result = await validateResetToken(prisma, token);
+
+  if (!result.valid) {
+    const errorMessages: Record<string, string> = {
+      invalid_token: "Invalid or expired reset link",
+      expired_token: "This reset link has expired",
+      used_token: "This reset link has already been used",
+    };
+    return { valid: false, error: errorMessages[result.error] };
+  }
+
+  return { valid: true };
 }

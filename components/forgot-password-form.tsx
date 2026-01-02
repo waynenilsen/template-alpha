@@ -46,12 +46,18 @@ export function ForgotPasswordForm({
       <form onSubmit={handleSubmit}>
         <CardContent className="grid gap-4">
           {error && (
-            <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+            <div
+              data-testid="forgot-password-error"
+              className="rounded-md bg-destructive/15 p-3 text-sm text-destructive"
+            >
               {error}
             </div>
           )}
           {success && (
-            <div className="rounded-md bg-green-500/15 p-3 text-sm text-green-700 dark:text-green-400">
+            <div
+              data-testid="forgot-password-success"
+              className="rounded-md bg-green-500/15 p-3 text-sm text-green-700 dark:text-green-400"
+            >
               Password reset link has been sent to your email
             </div>
           )}
@@ -65,6 +71,7 @@ export function ForgotPasswordForm({
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={isLoading || success}
+              data-testid="forgot-password-email-input"
             />
           </div>
         </CardContent>
@@ -73,6 +80,7 @@ export function ForgotPasswordForm({
             type="submit"
             className="w-full"
             disabled={isLoading || success}
+            data-testid="forgot-password-submit-button"
           >
             {isLoading ? "Sending..." : "Send reset link"}
           </Button>
