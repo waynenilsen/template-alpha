@@ -52,6 +52,7 @@ bun lint           # Run Biome checks (CI uses this)
 bun lint:fix       # Fix lint issues (imports, rules)
 bun format         # Format with Biome
 bun db:start       # Start PostgreSQL (auto-detects Docker vs local)
+bun mail:start     # Start mail server (auto-detects Docker vs local)
 ```
 
 ## Testing
@@ -210,6 +211,24 @@ Connection string (same in all environments):
 ```
 DATABASE_URL="postgresql://postgres:postgres@localhost:54673/template_alpha"
 ```
+
+## Mail Server
+
+```bash
+bun mail:start  # Start mail server for development
+```
+
+The `mail:start` script handles mail server setup automatically:
+
+| Environment | Behavior |
+|-------------|----------|
+| **Docker available** | Runs `docker compose up -d mailhog` |
+| **No Docker** (Claude Code Web) | Downloads and runs MailHog binary locally |
+| **CI** (GitHub Actions) | Skips entirely—emails are mocked in tests |
+
+MailHog provides:
+- **SMTP server**: `localhost:50239`
+- **Web UI**: `http://localhost:58443` (view captured emails)
 
 ## Testing
 
