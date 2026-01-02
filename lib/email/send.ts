@@ -1,6 +1,7 @@
 import { render } from "@react-email/render";
 import nodemailer from "nodemailer";
 import { InvitationEmail } from "./templates/invitation";
+import { PasswordResetEmail } from "./templates/password-reset";
 import { WelcomeEmail } from "./templates/welcome";
 
 // Email configuration
@@ -120,6 +121,42 @@ export async function sendInvitationEmail(
   await sendEmail({
     to: email,
     subject: `You've been invited to join ${organizationName} on ${EMAIL_CONFIG.appName}`,
+    html,
+    text,
+  });
+}
+
+/**
+ * Send a password reset email to a user
+ */
+export async function sendPasswordResetEmail(
+  email: string,
+  token: string,
+): Promise<void> {
+  const resetLink = `${EMAIL_CONFIG.appUrl}/reset-password?token=${token}`;
+
+  const html = await render(
+    PasswordResetEmail({
+      email,
+      resetLink,
+      appName: EMAIL_CONFIG.appName,
+      appUrl: EMAIL_CONFIG.appUrl,
+    }),
+  );
+
+  const text = await render(
+    PasswordResetEmail({
+      email,
+      resetLink,
+      appName: EMAIL_CONFIG.appName,
+      appUrl: EMAIL_CONFIG.appUrl,
+    }),
+    { plainText: true },
+  );
+
+  await sendEmail({
+    to: email,
+    subject: `Reset your ${EMAIL_CONFIG.appName} password`,
     html,
     text,
   });

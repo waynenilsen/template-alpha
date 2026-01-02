@@ -47,7 +47,10 @@ export function LoginForm({
       <form onSubmit={handleSubmit}>
         <CardContent className="grid gap-4">
           {error && (
-            <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+            <div
+              data-testid="signin-error"
+              className="rounded-md bg-destructive/15 p-3 text-sm text-destructive"
+            >
               {error}
             </div>
           )}
@@ -61,6 +64,7 @@ export function LoginForm({
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={isLoading}
+              data-testid="signin-email-input"
             />
           </div>
           <div className="grid gap-2">
@@ -71,6 +75,7 @@ export function LoginForm({
                   type="button"
                   onClick={onForgotPassword}
                   className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                  data-testid="signin-forgot-password-link"
                 >
                   Forgot password?
                 </button>
@@ -83,11 +88,17 @@ export function LoginForm({
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={isLoading}
+              data-testid="signin-password-input"
             />
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isLoading}
+            data-testid="signin-submit-button"
+          >
             {isLoading ? "Signing in..." : "Sign in"}
           </Button>
           {onSignUp && (

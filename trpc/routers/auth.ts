@@ -7,10 +7,16 @@ import {
   verifyPassword,
 } from "../../lib/auth/password";
 import {
+  requestPasswordReset,
+  resetPassword,
+  validateResetToken,
+} from "../../lib/auth/password-reset";
+import {
   createSession,
   deleteSession,
   switchOrganization,
 } from "../../lib/auth/session";
+import { sendPasswordResetEmail } from "../../lib/email/send";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../init";
 
 /**
@@ -35,6 +41,28 @@ const signInInput = z.object({
  */
 const switchOrgInput = z.object({
   organizationId: z.string().cuid().nullable(),
+});
+
+/**
+ * Input schema for requesting password reset
+ */
+const requestPasswordResetInput = z.object({
+  email: z.string().email("Invalid email address"),
+});
+
+/**
+ * Input schema for validating reset token
+ */
+const validateResetTokenInput = z.object({
+  token: z.string().min(1, "Token is required"),
+});
+
+/**
+ * Input schema for resetting password
+ */
+const resetPasswordInput = z.object({
+  token: z.string().min(1, "Token is required"),
+  password: passwordSchema,
 });
 
 /**
@@ -262,4 +290,68 @@ export const authRouter = createTRPCRouter({
   getOrganizations: protectedProcedure.query(async ({ ctx }) => {
     return getUserOrganizations(ctx.prisma, ctx.user.id);
   }),
+
+  /**
+   * Request a password reset email
+   * Always returns success to avoid leaking user existence
+   */
+  requestPasswordReset: publicProcedure
+    .input(requestPasswordResetInput)
+    .mutation(async ({ ctx, input }) => {
+      const result = await requestPasswordReset(ctx.prisma, input.email);
+
+      // If user exists, send the email
+      if (result.success) {
+        await sendPasswordResetEmail(input.email, result.token);
+      }
+
+      // Always return success to prevent email enumeration
+      return { success: true };
+    }),
+
+  /**
+   * Validate a password reset token
+   * Returns whether the token is valid (for UI feedback)
+   */
+  validateResetToken: publicProcedure
+    .input(validateResetTokenInput)
+    .query(async ({ ctx, input }) => {
+      const result = await validateResetToken(ctx.prisma, input.token);
+
+      if (!result.valid) {
+        return { valid: false, error: result.error };
+      }
+
+      return { valid: true };
+    }),
+
+  /**
+   * Reset password with a valid token
+   * Creates a new session after successful reset
+   */
+  resetPassword: publicProcedure
+    .input(resetPasswordInput)
+    .mutation(async ({ ctx, input }) => {
+      const result = await resetPassword(
+        ctx.prisma,
+        input.token,
+        input.password,
+      );
+
+      if (!result.success) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            result.error === "invalid_token"
+              ? "Invalid or expired reset link"
+              : result.error === "expired_token"
+                ? "This reset link has expired"
+                : result.error === "used_token"
+                  ? "This reset link has already been used"
+                  : "Unable to reset password",
+        });
+      }
+
+      return { success: true };
+    }),
 });
