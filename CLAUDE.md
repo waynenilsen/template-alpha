@@ -37,13 +37,67 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 ## Commands
 
 ```bash
-bun dev          # Start dev server (port 58665)
-bun build        # Production build
-bun typecheck    # TypeScript type checking (CI uses this)
-bun lint         # Run Biome checks (CI uses this)
-bun lint:fix     # Fix lint issues (imports, rules)
-bun format       # Format with Biome
+bun dev            # Start dev server (port 58665)
+bun build          # Production build
+bun test           # Run unit tests
+bun test:coverage  # Run tests with coverage report
+bun typecheck      # TypeScript type checking (CI uses this)
+bun lint           # Run Biome checks (CI uses this)
+bun lint:fix       # Fix lint issues (imports, rules)
+bun format         # Format with Biome
 docker compose up -d   # Start PostgreSQL
+```
+
+## Testing
+
+**We strive for 100% test coverage.** All new code must include tests.
+
+### Running Tests
+
+**IMPORTANT: Always run tests with coverage to monitor impact:**
+
+```bash
+bun test:coverage  # Always use this - shows coverage report
+```
+
+When you run tests, **review the coverage output** at the bottom. Check:
+1. Did your changes decrease overall coverage?
+2. Are your new files showing up with good coverage?
+3. What lines are uncovered? Add tests for them.
+
+### Coverage Requirements
+
+- **Current threshold: 81%** (configured in `bunfig.toml`)
+- CI will fail if coverage drops below this threshold
+- **Goal: 100% coverage** - always write tests that increase coverage
+- When adding new code, you MUST add tests that cover it
+- Never submit code that decreases coverage
+
+### AI Assistants: Testing Workflow
+
+When writing or modifying code:
+1. Write the code changes
+2. Write tests for the new/changed code
+3. Run `bun test:coverage` and review the coverage table
+4. If coverage decreased or new code is uncovered, add more tests
+5. Repeat until coverage is maintained or improved
+
+### Writing Tests
+
+- Test files go alongside source files with `.test.ts` extension
+- Use Bun's built-in test runner (`bun:test`)
+- Integration tests requiring database run in CI with PostgreSQL service
+
+Example:
+```typescript
+import { describe, expect, test } from "bun:test";
+import { myFunction } from "./myModule";
+
+describe("myFunction", () => {
+  test("does something expected", () => {
+    expect(myFunction()).toBe(expectedValue);
+  });
+});
 ```
 
 ## Frontend Development Workflow
@@ -75,13 +129,14 @@ Do this:
 Always run the following before committing your final changes:
 
 ```bash
-bun typecheck && bun lint:fix && bun format && git add .
+bun test:coverage && bun typecheck && bun lint:fix && bun format && git add .
 ```
 
 **Important:** Run these commands in this order:
-1. `bun typecheck` - Checks for TypeScript errors
-2. `bun lint:fix` - Fixes lint issues and organizes imports
-3. `bun format` - Applies code formatting
+1. `bun test:coverage` - Run tests and verify coverage didn't drop
+2. `bun typecheck` - Checks for TypeScript errors
+3. `bun lint:fix` - Fixes lint issues and organizes imports
+4. `bun format` - Applies code formatting
 
 Skipping any of these steps may cause CI to fail.
 

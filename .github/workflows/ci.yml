@@ -82,5 +82,5 @@ jobs:
       - name: Push database schema
         run: bunx prisma db push
 
-      - name: Run tests
-        run: bun test
+      - name: Run tests with coverage
+        run: bun test --coverage
