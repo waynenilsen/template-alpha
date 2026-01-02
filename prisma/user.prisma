@@ -13,6 +13,7 @@ model User {
   sessions            Session[]
   todos               Todo[]
   passwordResetTokens PasswordResetToken[]
+  sentInvitations     OrganizationInvitation[]
 
   @@index([email])
   @@index([isAdmin], map: "idx_users_is_admin")

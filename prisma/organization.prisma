@@ -8,9 +8,10 @@ model Organization {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  members  OrganizationMember[]
-  sessions Session[]
-  todos    Todo[]
+  members     OrganizationMember[]
+  sessions    Session[]
+  todos       Todo[]
+  invitations OrganizationInvitation[]
 
   @@index([slug])
   @@map("organizations")

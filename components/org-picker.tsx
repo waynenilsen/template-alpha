@@ -1,9 +1,11 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, Plus, Settings } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
+import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -39,8 +41,11 @@ export function OrgPicker({ organizations, currentOrgId }: OrgPickerProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
 
   const currentOrg = organizations.find((org) => org.id === currentOrgId);
+  const canManageOrg =
+    currentOrg?.role === "owner" || currentOrg?.role === "admin";
 
   const switchOrgMutation = useMutation(
     trpc.auth.switchOrg.mutationOptions({
@@ -56,23 +61,29 @@ export function OrgPicker({ organizations, currentOrgId }: OrgPickerProps) {
     startTransition(() => {
       switchOrgMutation.mutate({ organizationId: orgId });
     });
+    setOpen(false);
   };
 
   if (organizations.length === 0) {
     return (
-      <Button variant="outline" size="sm" className="gap-2">
-        <Plus className="h-4 w-4" />
-        Create Organization
-      </Button>
+      <CreateOrganizationDialog
+        trigger={
+          <Button variant="outline" size="sm" className="gap-2">
+            <Plus className="h-4 w-4" />
+            Create Organization
+          </Button>
+        }
+      />
     );
   }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
+          aria-expanded={open}
           className="w-[200px] justify-between"
           disabled={isPending || switchOrgMutation.isPending}
         >
@@ -83,7 +94,7 @@ export function OrgPicker({ organizations, currentOrgId }: OrgPickerProps) {
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0">
+      <PopoverContent className="w-[220px] p-0">
         <Command>
           <CommandInput placeholder="Search organization..." />
           <CommandList>
@@ -108,12 +119,36 @@ export function OrgPicker({ organizations, currentOrgId }: OrgPickerProps) {
                 </CommandItem>
               ))}
             </CommandGroup>
+            {canManageOrg && (
+              <>
+                <CommandSeparator />
+                <CommandGroup>
+                  <CommandItem asChild>
+                    <Link
+                      href="/settings/organization"
+                      className="flex cursor-pointer"
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Organization Settings
+                    </Link>
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
             <CommandSeparator />
             <CommandGroup>
-              <CommandItem disabled>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Organization
-              </CommandItem>
+              <CreateOrganizationDialog
+                trigger={
+                  <CommandItem
+                    onSelect={(_e) => {
+                      // Prevent the command from closing
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Organization
+                  </CommandItem>
+                }
+              />
             </CommandGroup>
           </CommandList>
         </Command>

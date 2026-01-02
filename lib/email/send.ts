@@ -1,5 +1,6 @@
 import { render } from "@react-email/render";
 import nodemailer from "nodemailer";
+import { InvitationEmail } from "./templates/invitation";
 import { WelcomeEmail } from "./templates/welcome";
 
 // Email configuration
@@ -77,6 +78,48 @@ export async function sendWelcomeEmail(email: string): Promise<void> {
   await sendEmail({
     to: email,
     subject: `Welcome to ${EMAIL_CONFIG.appName}`,
+    html,
+    text,
+  });
+}
+
+/**
+ * Send an invitation email to join an organization
+ */
+export async function sendInvitationEmail(
+  email: string,
+  organizationName: string,
+  invitedByEmail: string,
+  token: string,
+): Promise<void> {
+  const inviteUrl = `${EMAIL_CONFIG.appUrl}/invite/${token}`;
+
+  const html = await render(
+    InvitationEmail({
+      email,
+      organizationName,
+      invitedByEmail,
+      inviteUrl,
+      appName: EMAIL_CONFIG.appName,
+      appUrl: EMAIL_CONFIG.appUrl,
+    }),
+  );
+
+  const text = await render(
+    InvitationEmail({
+      email,
+      organizationName,
+      invitedByEmail,
+      inviteUrl,
+      appName: EMAIL_CONFIG.appName,
+      appUrl: EMAIL_CONFIG.appUrl,
+    }),
+    { plainText: true },
+  );
+
+  await sendEmail({
+    to: email,
+    subject: `You've been invited to join ${organizationName} on ${EMAIL_CONFIG.appName}`,
     html,
     text,
   });

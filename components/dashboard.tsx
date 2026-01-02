@@ -1,6 +1,7 @@
 "use client";
 
 import { Building2, Plus } from "lucide-react";
+import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
 import { type Organization, OrgPicker } from "@/components/org-picker";
 import { TodoList } from "@/components/todo-list";
 import { Button } from "@/components/ui/button";
@@ -78,13 +79,14 @@ function NoOrganizations() {
             You're not a member of any organization yet. Create one to get
             started with your todos.
           </p>
-          <Button className="gap-2" disabled>
-            <Plus className="h-4 w-4" />
-            Create Organization
-          </Button>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Organization creation coming soon
-          </p>
+          <CreateOrganizationDialog
+            trigger={
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                Create Organization
+              </Button>
+            }
+          />
         </CardContent>
       </Card>
     </div>
