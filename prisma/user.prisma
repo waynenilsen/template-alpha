@@ -9,9 +9,10 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
-  memberships OrganizationMember[]
-  sessions    Session[]
-  todos       Todo[]
+  memberships         OrganizationMember[]
+  sessions            Session[]
+  todos               Todo[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([email])
   @@index([isAdmin], map: "idx_users_is_admin")

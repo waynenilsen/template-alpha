@@ -28,6 +28,23 @@ export {
   verifyPassword,
 } from "./password";
 export {
+  type CreatePasswordResetResult,
+  cleanupExpiredResetTokens,
+  createPasswordResetToken,
+  generateResetToken,
+  getPasswordResetTokenById,
+  getUserResetTokens,
+  hashResetToken,
+  invalidateUserResetTokens,
+  type PasswordResetTokenData,
+  type RequestPasswordResetResult,
+  type ResetPasswordResult,
+  requestPasswordReset,
+  resetPassword,
+  type ValidateResetTokenResult,
+  validateResetToken,
+} from "./password-reset";
+export {
   cleanupExpiredSessions,
   createSession,
   deleteSession,
