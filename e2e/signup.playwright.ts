@@ -1,4 +1,13 @@
 import { expect, test } from "@playwright/test";
+import {
+  completeSignup,
+  dashboardLocators,
+  fillAndSubmitSignupForm,
+  fillSignupForm,
+  signupLocators,
+  submitSignupForm,
+  TEST_USER,
+} from "./helpers";
 import { deleteAllMessages, getSubject, waitForEmail } from "./helpers/mailhog";
 
 test.describe("Sign Up Flow", () => {
@@ -15,16 +24,16 @@ test.describe("Sign Up Flow", () => {
     ).toBeVisible();
 
     // Check that all form fields are visible
-    await expect(page.getByTestId("signup-name-input")).toBeVisible();
-    await expect(page.getByTestId("signup-email-input")).toBeVisible();
-    await expect(page.getByTestId("signup-password-input")).toBeVisible();
+    await expect(page.getByTestId(signupLocators.nameInput)).toBeVisible();
+    await expect(page.getByTestId(signupLocators.emailInput)).toBeVisible();
+    await expect(page.getByTestId(signupLocators.passwordInput)).toBeVisible();
     await expect(
-      page.getByTestId("signup-confirm-password-input"),
+      page.getByTestId(signupLocators.confirmPasswordInput),
     ).toBeVisible();
-    await expect(page.getByTestId("signup-submit-button")).toBeVisible();
+    await expect(page.getByTestId(signupLocators.submitButton)).toBeVisible();
 
     // Check the submit button text
-    await expect(page.getByTestId("signup-submit-button")).toHaveText(
+    await expect(page.getByTestId(signupLocators.submitButton)).toHaveText(
       "Sign up",
     );
   });
@@ -32,85 +41,60 @@ test.describe("Sign Up Flow", () => {
   test("shows password mismatch error when passwords do not match", async ({
     page,
   }) => {
-    // Fill in the form with mismatched passwords
-    await page.getByTestId("signup-name-input").fill("Test User");
-    await page.getByTestId("signup-email-input").fill("test@example.com");
-    await page.getByTestId("signup-password-input").fill("SecurePass123!");
-    await page
-      .getByTestId("signup-confirm-password-input")
-      .fill("DifferentPass123!");
-
-    // Submit the form
-    await page.getByTestId("signup-submit-button").click();
+    await fillSignupForm(page, {
+      confirmPassword: "DifferentPass123!",
+    });
+    await submitSignupForm(page);
 
     // Check that the password mismatch error is displayed
-    await expect(page.getByTestId("password-mismatch-error")).toBeVisible();
-    await expect(page.getByTestId("password-mismatch-error")).toHaveText(
-      "Passwords do not match",
-    );
+    await expect(
+      page.getByTestId(signupLocators.passwordMismatchError),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId(signupLocators.passwordMismatchError),
+    ).toHaveText("Passwords do not match");
   });
 
   test("clears password mismatch error when user modifies confirm password", async ({
     page,
   }) => {
-    // Fill in the form with mismatched passwords
-    await page.getByTestId("signup-name-input").fill("Test User");
-    await page.getByTestId("signup-email-input").fill("test@example.com");
-    await page.getByTestId("signup-password-input").fill("SecurePass123!");
-    await page
-      .getByTestId("signup-confirm-password-input")
-      .fill("DifferentPass123!");
-
-    // Submit the form
-    await page.getByTestId("signup-submit-button").click();
+    await fillSignupForm(page, {
+      confirmPassword: "DifferentPass123!",
+    });
+    await submitSignupForm(page);
 
     // Verify error is shown
-    await expect(page.getByTestId("password-mismatch-error")).toBeVisible();
+    await expect(
+      page.getByTestId(signupLocators.passwordMismatchError),
+    ).toBeVisible();
 
-    // Modify confirm password
+    // Modify confirm password to match
     await page
-      .getByTestId("signup-confirm-password-input")
-      .fill("SecurePass123!");
+      .getByTestId(signupLocators.confirmPasswordInput)
+      .fill(TEST_USER.password);
 
     // Error should be cleared
-    await expect(page.getByTestId("password-mismatch-error")).not.toBeVisible();
+    await expect(
+      page.getByTestId(signupLocators.passwordMismatchError),
+    ).not.toBeVisible();
   });
 
   test("navigates to sign in page when clicking sign in link", async ({
     page,
   }) => {
-    await page.getByTestId("signin-link").click();
+    await page.getByTestId(signupLocators.signinLink).click();
     await expect(page).toHaveURL("/sign-in");
   });
 
   test("successfully creates a new account and shows dashboard", async ({
     page,
   }) => {
-    // Generate a unique email to avoid conflicts
-    const uniqueEmail = `test-${Date.now()}@example.com`;
-
-    // Fill in the form
-    await page.getByTestId("signup-name-input").fill("Test User");
-    await page.getByTestId("signup-email-input").fill(uniqueEmail);
-    await page.getByTestId("signup-password-input").fill("SecurePass123!");
-    await page
-      .getByTestId("signup-confirm-password-input")
-      .fill("SecurePass123!");
-
-    // Submit the form
-    await page.getByTestId("signup-submit-button").click();
-
-    // Button should show loading state
-    await expect(page.getByTestId("signup-submit-button")).toHaveText(
-      "Creating account...",
-    );
-
-    // Should redirect to home page after successful signup
-    await expect(page).toHaveURL("/", { timeout: 10000 });
+    const email = await completeSignup(page);
 
     // Verify user is logged in and sees the dashboard
-    await expect(page.getByTestId("dashboard")).toBeVisible({ timeout: 10000 });
-    await expect(page.getByTestId("dashboard-title")).toHaveText("Todo App");
+    await expect(page.getByTestId(dashboardLocators.dashboardTitle)).toHaveText(
+      "Todo App",
+    );
 
     // New user should see their auto-created organization with the todo list
     // The stats section shows "Total", "Completed", "Pending", "Progress"
@@ -118,7 +102,7 @@ test.describe("Sign Up Flow", () => {
     await expect(page.getByText("Pending")).toBeVisible();
 
     // Verify welcome email was sent
-    const welcomeEmail = await waitForEmail(uniqueEmail, {
+    const welcomeEmail = await waitForEmail(email, {
       subjectContains: "Welcome",
       timeout: 5000,
     });
@@ -129,66 +113,47 @@ test.describe("Sign Up Flow", () => {
     page,
   }) => {
     // First, create an account
-    const existingEmail = `duplicate-${Date.now()}@example.com`;
-
-    await page.getByTestId("signup-name-input").fill("First User");
-    await page.getByTestId("signup-email-input").fill(existingEmail);
-    await page.getByTestId("signup-password-input").fill("SecurePass123!");
-    await page
-      .getByTestId("signup-confirm-password-input")
-      .fill("SecurePass123!");
-    await page.getByTestId("signup-submit-button").click();
-
-    // Wait for redirect to home and verify dashboard is visible
-    await expect(page).toHaveURL("/", { timeout: 10000 });
-    await expect(page.getByTestId("dashboard")).toBeVisible({ timeout: 10000 });
+    const existingEmail = await completeSignup(page, {
+      name: "First User",
+    });
 
     // Now try to sign up with the same email
     await page.goto("/sign-up");
 
-    await page.getByTestId("signup-name-input").fill("Second User");
-    await page.getByTestId("signup-email-input").fill(existingEmail);
-    await page.getByTestId("signup-password-input").fill("AnotherPass123!");
-    await page
-      .getByTestId("signup-confirm-password-input")
-      .fill("AnotherPass123!");
-    await page.getByTestId("signup-submit-button").click();
+    await fillAndSubmitSignupForm(page, {
+      name: "Second User",
+      email: existingEmail,
+      password: "AnotherPass123!",
+    });
 
     // Should show error about existing account
-    await expect(page.getByTestId("signup-error")).toBeVisible({
+    await expect(page.getByTestId(signupLocators.errorMessage)).toBeVisible({
       timeout: 10000,
     });
-    await expect(page.getByTestId("signup-error")).toContainText(
+    await expect(page.getByTestId(signupLocators.errorMessage)).toContainText(
       "already exists",
     );
   });
 
   test("shows validation error for weak password", async ({ page }) => {
-    await page.getByTestId("signup-name-input").fill("Test User");
-    await page
-      .getByTestId("signup-email-input")
-      .fill(`test-${Date.now()}@example.com`);
-    await page.getByTestId("signup-password-input").fill("weak");
-    await page.getByTestId("signup-confirm-password-input").fill("weak");
-    await page.getByTestId("signup-submit-button").click();
+    await fillAndSubmitSignupForm(page, {
+      password: TEST_USER.weakPassword,
+    });
 
     // Should show password validation error
-    await expect(page.getByTestId("signup-error")).toBeVisible({
+    await expect(page.getByTestId(signupLocators.errorMessage)).toBeVisible({
       timeout: 10000,
     });
   });
 
   test("shows validation error for invalid email", async ({ page }) => {
-    await page.getByTestId("signup-name-input").fill("Test User");
-    await page.getByTestId("signup-email-input").fill("invalid-email");
-    await page.getByTestId("signup-password-input").fill("SecurePass123!");
-    await page
-      .getByTestId("signup-confirm-password-input")
-      .fill("SecurePass123!");
-    await page.getByTestId("signup-submit-button").click();
+    await fillSignupForm(page, {
+      email: "invalid-email",
+    });
+    await submitSignupForm(page);
 
     // HTML5 validation should prevent form submission - check that the email input is invalid
-    const emailInput = page.getByTestId("signup-email-input");
+    const emailInput = page.getByTestId(signupLocators.emailInput);
     const isInvalid = await emailInput.evaluate(
       (el) => !(el as HTMLInputElement).checkValidity(),
     );
@@ -199,19 +164,10 @@ test.describe("Sign Up Flow", () => {
   });
 
   test("disables form inputs while submitting", async ({ page }) => {
-    const uniqueEmail = `test-${Date.now()}@example.com`;
-
-    await page.getByTestId("signup-name-input").fill("Test User");
-    await page.getByTestId("signup-email-input").fill(uniqueEmail);
-    await page.getByTestId("signup-password-input").fill("SecurePass123!");
-    await page
-      .getByTestId("signup-confirm-password-input")
-      .fill("SecurePass123!");
-
-    // Submit and quickly check that inputs are disabled
-    await page.getByTestId("signup-submit-button").click();
+    await fillSignupForm(page);
+    await submitSignupForm(page);
 
     // Check loading state (may be quick, so we check immediately)
-    await expect(page.getByTestId("signup-submit-button")).toBeDisabled();
+    await expect(page.getByTestId(signupLocators.submitButton)).toBeDisabled();
   });
 });
