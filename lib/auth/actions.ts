@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod/v4";
 import { prisma } from "../db";
+import { sendWelcomeEmail } from "../email";
 import { getUserOrganizations } from "./authorization";
 import { hashPassword, passwordSchema, verifyPassword } from "./password";
 import {
@@ -101,6 +102,11 @@ export async function signUp(data: {
     const newSession = await createSession(tx, newUser.id, newOrg.id);
 
     return { user: newUser, organization: newOrg, session: newSession };
+  });
+
+  // Send welcome email (fire and forget - don't block the signup flow)
+  sendWelcomeEmail(email).catch((error) => {
+    console.error("Failed to send welcome email:", error);
   });
 
   // Set session cookie
