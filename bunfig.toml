@@ -1,7 +1,10 @@
 [test]
 # Coverage configuration
 # We strive for 100% test coverage - current threshold prevents regression
-coverageThreshold = 0.81
+# Note: Some code cannot be tested:
+# - createServerSideContext requires Next.js runtime (cookies() from next/headers)
+# - auth.switchOrg failure case requires race condition (session deleted between middleware and call)
+coverageThreshold = 0.86
 
 # Exclude test files and generated code from coverage calculation
 coverageSkipTestFiles = true
