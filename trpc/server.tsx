@@ -2,7 +2,7 @@ import "server-only";
 
 import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import { cache } from "react";
-import { createCallerFactory, createTRPCContext } from "./init";
+import { createCallerFactory, createServerSideContext } from "./init";
 import { makeQueryClient } from "./query-client";
 import { appRouter } from "./router";
 
@@ -22,7 +22,7 @@ export const getQueryClient = cache(makeQueryClient);
  * Create a request-scoped tRPC caller for direct server-side calls
  */
 export const caller = cache(async () => {
-  const ctx = await createTRPCContext();
+  const ctx = await createServerSideContext();
   return createCaller(ctx);
 });
 
@@ -31,7 +31,7 @@ export const caller = cache(async () => {
  * This enables the "render as you fetch" pattern with queryOptions
  */
 export const trpc = createTRPCOptionsProxy<typeof appRouter>({
-  ctx: createTRPCContext,
+  ctx: createServerSideContext,
   router: appRouter,
   queryClient: getQueryClient,
 });

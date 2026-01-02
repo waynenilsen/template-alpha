@@ -20,6 +20,7 @@ import {
   type OrganizationMember,
   PrismaClient,
   type Session,
+  type Todo,
   type User,
 } from "../generated/prisma/client";
 
@@ -78,6 +79,7 @@ export interface TestContext {
   organizationIds: Set<string>;
   membershipIds: Set<string>;
   sessionIds: Set<string>;
+  todoIds: Set<string>;
 
   // Factory methods
   createUser: (options?: CreateUserOptions) => Promise<User>;
@@ -88,6 +90,7 @@ export interface TestContext {
     options: CreateMembershipOptions,
   ) => Promise<OrganizationMember>;
   createSession: (options: CreateSessionOptions) => Promise<Session>;
+  createTodo: (options: CreateTodoOptions) => Promise<Todo>;
 
   // Convenience methods
   createUserWithOrg: (
@@ -122,6 +125,14 @@ export interface CreateSessionOptions {
   expiresAt?: Date;
 }
 
+export interface CreateTodoOptions {
+  title?: string;
+  description?: string | null;
+  completed?: boolean;
+  organizationId: string;
+  createdById: string;
+}
+
 export interface CreateUserWithOrgOptions {
   email?: string;
   password?: string;
@@ -147,6 +158,7 @@ export function createTestContext(): TestContext {
   const organizationIds = new Set<string>();
   const membershipIds = new Set<string>();
   const sessionIds = new Set<string>();
+  const todoIds = new Set<string>();
 
   const createUser = async (options: CreateUserOptions = {}): Promise<User> => {
     const uniqueId = generateUniqueId();
@@ -214,6 +226,24 @@ export function createTestContext(): TestContext {
     return session;
   };
 
+  const createTodo = async (options: CreateTodoOptions): Promise<Todo> => {
+    const uniqueId = generateUniqueId();
+    const title = options.title ?? `${prefix}Todo ${uniqueId}`;
+
+    const todo = await prisma.todo.create({
+      data: {
+        title,
+        description: options.description ?? null,
+        completed: options.completed ?? false,
+        organizationId: options.organizationId,
+        createdById: options.createdById,
+      },
+    });
+
+    todoIds.add(todo.id);
+    return todo;
+  };
+
   const createUserWithOrg = async (
     options: CreateUserWithOrgOptions = {},
   ): Promise<UserWithOrg> => {
@@ -246,7 +276,14 @@ export function createTestContext(): TestContext {
 
   const cleanup = async (): Promise<void> => {
     // Delete in reverse order of dependencies
-    // Sessions first (depend on users and orgs)
+    // Todos first (depend on users and orgs)
+    if (todoIds.size > 0) {
+      await prisma.todo.deleteMany({
+        where: { id: { in: Array.from(todoIds) } },
+      });
+    }
+
+    // Sessions next (depend on users and orgs)
     if (sessionIds.size > 0) {
       await prisma.session.deleteMany({
         where: { id: { in: Array.from(sessionIds) } },
@@ -282,10 +319,12 @@ export function createTestContext(): TestContext {
     organizationIds,
     membershipIds,
     sessionIds,
+    todoIds,
     createUser,
     createOrganization,
     createMembership,
     createSession,
+    createTodo,
     createUserWithOrg,
     signIn,
     cleanup,

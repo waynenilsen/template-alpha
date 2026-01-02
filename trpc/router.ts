@@ -5,6 +5,7 @@ import { createSession } from "../lib/auth/session";
 import { prisma } from "../lib/db";
 import { sendWelcomeEmail } from "../lib/email";
 import { createTRPCRouter, publicProcedure } from "./init";
+import { authRouter, todoRouter } from "./routers";
 
 /**
  * Main application router
@@ -38,115 +39,36 @@ export const appRouter = createTRPCRouter({
     }),
 
   /**
-   * Stats procedure - proof of concept returning mock data
-   * This will be replaced with real database queries
+   * Stats procedure - returns platform statistics
+   * Uses real database queries to count users, orgs, and todos
    */
-  stats: publicProcedure.query(() => {
+  stats: publicProcedure.query(async ({ ctx }) => {
+    const [totalUsers, totalTenants, totalTodos, completedTodos] =
+      await Promise.all([
+        ctx.prisma.user.count(),
+        ctx.prisma.organization.count(),
+        ctx.prisma.todo.count(),
+        ctx.prisma.todo.count({ where: { completed: true } }),
+      ]);
+
     return {
-      totalUsers: 42,
-      totalTenants: 7,
-      totalTodos: 156,
-      completedTodos: 89,
+      totalUsers,
+      totalTenants,
+      totalTodos,
+      completedTodos,
       timestamp: new Date(),
     };
   }),
 
   /**
-   * Signup procedure - creates a new user account
-   * 1. Validates email and password
-   * 2. Creates user with hashed password
-   * 3. Creates a default organization
-   * 4. Adds user as organization owner
-   * 5. Creates a session
-   * 6. Sends welcome email
+   * Auth router - authentication and session management
    */
-  signup: publicProcedure
-    .input(
-      z.object({
-        email: z.email("Invalid email address"),
-        password: passwordSchema,
-        organizationName: z.string().min(1).max(100).optional(),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      // Check if email already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email: input.email },
-      });
+  auth: authRouter,
 
-      if (existingUser) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "An account with this email already exists",
-        });
-      }
-
-      // Hash password
-      const passwordHash = await hashPassword(input.password);
-
-      // Generate organization slug from email or name
-      const orgName =
-        input.organizationName || `${input.email.split("@")[0]}'s Workspace`;
-      const baseSlug = orgName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
-
-      // Add random suffix to ensure uniqueness
-      const slug = `${baseSlug}-${Date.now().toString(36)}`;
-
-      // Create user, organization, and membership in a transaction
-      const result = await prisma.$transaction(async (tx) => {
-        // Create user
-        const user = await tx.user.create({
-          data: {
-            email: input.email,
-            passwordHash,
-          },
-        });
-
-        // Create organization
-        const organization = await tx.organization.create({
-          data: {
-            name: orgName,
-            slug,
-          },
-        });
-
-        // Add user as organization owner
-        await tx.organizationMember.create({
-          data: {
-            userId: user.id,
-            organizationId: organization.id,
-            role: "owner",
-          },
-        });
-
-        // Create session
-        const session = await createSession(tx, user.id, organization.id);
-
-        return { user, organization, session };
-      });
-
-      // Send welcome email (don't block on this)
-      sendWelcomeEmail(input.email).catch((err) => {
-        console.error("Failed to send welcome email:", err);
-      });
-
-      return {
-        success: true,
-        sessionId: result.session.id,
-        user: {
-          id: result.user.id,
-          email: result.user.email,
-        },
-        organization: {
-          id: result.organization.id,
-          name: result.organization.name,
-          slug: result.organization.slug,
-        },
-      };
-    }),
+  /**
+   * Todo router - todo CRUD operations (org-scoped)
+   */
+  todo: todoRouter,
 });
 
 // Export type definition of the API for client usage
