@@ -14,6 +14,7 @@
     "format": "biome format --write",
     "postinstall": "prisma generate",
     "db:start": "./scripts/setup-postgres.sh",
+    "mail:start": "./scripts/setup-mailhog.sh",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
