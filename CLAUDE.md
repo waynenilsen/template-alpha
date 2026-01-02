@@ -39,6 +39,7 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 ```bash
 bun dev          # Start dev server (port 58665)
 bun build        # Production build
+bun typecheck    # TypeScript type checking (CI uses this)
 bun lint         # Run Biome checks (CI uses this)
 bun lint:fix     # Fix lint issues (imports, rules)
 bun format       # Format with Biome
@@ -74,14 +75,15 @@ Do this:
 Always run the following before committing your final changes:
 
 ```bash
-bun lint:fix && bun format && git add .
+bun typecheck && bun lint:fix && bun format && git add .
 ```
 
-**Important:** Run both commands in this order:
-1. `bun lint:fix` - Fixes lint issues and organizes imports
-2. `bun format` - Applies code formatting
+**Important:** Run these commands in this order:
+1. `bun typecheck` - Checks for TypeScript errors
+2. `bun lint:fix` - Fixes lint issues and organizes imports
+3. `bun format` - Applies code formatting
 
-Running only `bun format` will miss import organization and lint fixes, causing CI to fail.
+Skipping any of these steps may cause CI to fail.
 
 ## Git Workflow
 
