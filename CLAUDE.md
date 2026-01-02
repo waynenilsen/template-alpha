@@ -21,6 +21,8 @@ Don't assume the dev server is running or that anything is set up. Check first, 
 
 This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration kata. It's a work in progress—see README.md for implementation status.
 
+**See [CODEBASE.md](./CODEBASE.md) for detailed directory structure and architecture.**
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router) + React 19 (dev server on port 58665)
@@ -166,13 +168,6 @@ This keeps one clean commit per feature/fix instead of cluttering history with W
 
 ## Code Conventions
 
-### File Organization
-- Pages go in `app/` using Next.js App Router conventions
-- UI components from shadcn live in `components/ui/`
-- Custom components go in `components/` (not in ui/)
-- Hooks go in `hooks/`
-- Utilities go in `lib/`
-
 ### Styling
 - Use Tailwind utility classes, not custom CSS
 - shadcn/ui components are already installed—use them
@@ -281,35 +276,3 @@ const ctx = createTestTRPCContext({
 const caller = appRouter.createCaller(ctx);
 ```
 
-## Architecture Notes
-
-### Prisma Schema
-- Models: User, Organization, OrganizationMember, Session, Todo
-- All tenant-scoped models have an `organizationId` field
-- Cascade deletes configured for proper cleanup
-
-### tRPC Setup (implemented)
-- Server code lives in `trpc/` directory
-- Uses the **new TanStack Query integration** (v11), not the legacy hooks
-- Client usage: `const trpc = useTRPC(); useQuery(trpc.procedure.queryOptions())`
-- Server-side prefetching available via `trpc/server.tsx`
-- Use Zod for input validation
-- Routers are in `trpc/routers/` - add new routers there and merge in `trpc/router.ts`
-
-### Procedure Types
-- `publicProcedure` - No auth required
-- `protectedProcedure` - Requires authenticated session
-- `orgProcedure` - Requires auth + active organization context
-
-### Auth System (implemented)
-- Session-based authentication (not JWT)
-- Sessions stored in database with 7-day expiry
-- RBAC with role hierarchy: `owner > admin > member`
-- Internal admin flag (`isAdmin`) bypasses tenant RBAC
-- Auth procedures: `auth.signUp`, `auth.signIn`, `auth.signOut`, `auth.me`, `auth.switchOrg`
-
-### Todo Resource (implemented)
-- Organization-scoped (uses `orgProcedure`)
-- CRUD operations: `todo.create`, `todo.get`, `todo.list`, `todo.update`, `todo.delete`
-- Additional: `todo.toggleComplete`, `todo.stats`
-- Delete restricted to admin role or higher
