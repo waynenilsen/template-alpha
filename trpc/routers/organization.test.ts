@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
 import {
   createTestContext,
@@ -7,6 +7,26 @@ import {
 } from "../../lib/test/harness";
 import { createTestTRPCContext } from "../init";
 import { appRouter } from "../router";
+
+// Track email send calls for verification
+const invitationEmails: Array<{
+  email: string;
+  orgName: string;
+  inviterEmail: string;
+  token: string;
+}> = [];
+
+// Mock the email module
+mock.module("../../lib/email/send", () => ({
+  sendInvitationEmail: mock(
+    (email: string, orgName: string, inviterEmail: string, token: string) => {
+      invitationEmails.push({ email, orgName, inviterEmail, token });
+      return Promise.resolve();
+    },
+  ),
+  sendPasswordResetEmail: mock(() => Promise.resolve()),
+  sendWelcomeEmail: mock(() => Promise.resolve()),
+}));
 
 describe("organization router", () => {
   let ctx: TestContext;
@@ -1310,6 +1330,419 @@ describe("organization router", () => {
       // Cleanup
       await ctx.prisma.organizationInvitation.delete({
         where: { id: invitation.id },
+      });
+    });
+  });
+
+  describe("inviteMember", () => {
+    test("owner can invite member", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+      invitationEmails.length = 0;
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.organization.inviteMember({
+        email: "newinvitee@example.com",
+        role: "member",
+      });
+
+      expect(result.email).toBe("newinvitee@example.com");
+      expect(result.role).toBe("member");
+      expect(result.id).toBeDefined();
+      expect(invitationEmails).toHaveLength(1);
+      expect(invitationEmails[0].email).toBe("newinvitee@example.com");
+      expect(invitationEmails[0].orgName).toBe(organization.name);
+
+      // Cleanup
+      await ctx.prisma.organizationInvitation.delete({
+        where: { id: result.id },
+      });
+    });
+
+    test("admin can invite member but not admin", async () => {
+      const { organization } = await ctx.createUserWithOrg();
+      const admin = await ctx.createUser();
+      await ctx.createMembership({
+        userId: admin.id,
+        organizationId: organization.id,
+        role: "admin",
+      });
+      const session = await ctx.createSession({
+        userId: admin.id,
+        currentOrgId: organization.id,
+      });
+      invitationEmails.length = 0;
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: admin.id, email: admin.email, isAdmin: admin.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      // Admin can invite member
+      const result = await caller.organization.inviteMember({
+        email: "memberfromadmin@example.com",
+        role: "member",
+      });
+
+      expect(result.role).toBe("member");
+
+      // Cleanup
+      await ctx.prisma.organizationInvitation.delete({
+        where: { id: result.id },
+      });
+
+      // Admin cannot invite admin
+      try {
+        await caller.organization.inviteMember({
+          email: "adminattempt@example.com",
+          role: "admin",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("FORBIDDEN");
+      }
+    });
+
+    test("member cannot invite anyone", async () => {
+      const { organization } = await ctx.createUserWithOrg();
+      const member = await ctx.createUser();
+      await ctx.createMembership({
+        userId: member.id,
+        organizationId: organization.id,
+        role: "member",
+      });
+      const session = await ctx.createSession({
+        userId: member.id,
+        currentOrgId: organization.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: member.id, email: member.email, isAdmin: member.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.organization.inviteMember({
+          email: "test@example.com",
+          role: "member",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("FORBIDDEN");
+      }
+    });
+
+    test("rejects invitation if user is already a member", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const existingMember = await ctx.createUser();
+      await ctx.createMembership({
+        userId: existingMember.id,
+        organizationId: organization.id,
+        role: "member",
+      });
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.organization.inviteMember({
+          email: existingMember.email,
+          role: "member",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("CONFLICT");
+        expect((error as TRPCError).message).toContain("already a member");
+      }
+    });
+
+    test("rejects duplicate pending invitation", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+      invitationEmails.length = 0;
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      // Send first invitation
+      const result = await caller.organization.inviteMember({
+        email: "duplicate@example.com",
+        role: "member",
+      });
+
+      // Try to send second invitation to same email
+      try {
+        await caller.organization.inviteMember({
+          email: "duplicate@example.com",
+          role: "member",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("CONFLICT");
+        expect((error as TRPCError).message).toContain("already been sent");
+      }
+
+      // Cleanup
+      await ctx.prisma.organizationInvitation.delete({
+        where: { id: result.id },
+      });
+    });
+  });
+
+  describe("cancelInvitation edge cases", () => {
+    test("rejects non-existent invitation", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.organization.cancelInvitation({
+          invitationId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("NOT_FOUND");
+      }
+    });
+
+    test("rejects already accepted invitation", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      // Create accepted invitation
+      const crypto = await import("node:crypto");
+      const tokenHash = crypto
+        .createHash("sha256")
+        .update("accepted")
+        .digest("hex");
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const invitation = await ctx.prisma.organizationInvitation.create({
+        data: {
+          organizationId: organization.id,
+          email: "accepted@example.com",
+          role: "member",
+          tokenHash,
+          invitedById: user.id,
+          expiresAt,
+          acceptedAt: new Date(), // Already accepted
+        },
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.organization.cancelInvitation({
+          invitationId: invitation.id,
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("BAD_REQUEST");
+        expect((error as TRPCError).message).toContain("already been accepted");
+      }
+
+      // Cleanup
+      await ctx.prisma.organizationInvitation.delete({
+        where: { id: invitation.id },
+      });
+    });
+  });
+
+  describe("removeMember edge cases", () => {
+    test("rejects non-existent member", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.organization.removeMember({
+          memberId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("NOT_FOUND");
+      }
+    });
+  });
+
+  describe("updateMemberRole edge cases", () => {
+    test("member cannot change roles", async () => {
+      const { organization } = await ctx.createUserWithOrg();
+      const member = await ctx.createUser();
+      await ctx.createMembership({
+        userId: member.id,
+        organizationId: organization.id,
+        role: "member",
+      });
+      const otherMember = await ctx.createUser();
+      const otherMembership = await ctx.createMembership({
+        userId: otherMember.id,
+        organizationId: organization.id,
+        role: "member",
+      });
+      const session = await ctx.createSession({
+        userId: member.id,
+        currentOrgId: organization.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: member.id, email: member.email, isAdmin: member.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.organization.updateMemberRole({
+          memberId: otherMembership.id,
+          role: "admin",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("FORBIDDEN");
+      }
+    });
+  });
+
+  describe("transferOwnership edge cases", () => {
+    test("rejects non-existent member", async () => {
+      const { user, organization } = await ctx.createUserWithOrg();
+      const session = await ctx.createSession({
+        userId: user.id,
+        currentOrgId: organization.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      try {
+        await caller.organization.transferOwnership({
+          memberId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("NOT_FOUND");
+      }
+    });
+
+    test("platform admin can transfer any org ownership", async () => {
+      const { organization, membership } = await ctx.createUserWithOrg();
+      const member = await ctx.createUser();
+      const memberMembership = await ctx.createMembership({
+        userId: member.id,
+        organizationId: organization.id,
+        role: "member",
+      });
+      const platformAdmin = await ctx.createUser({ isAdmin: true });
+      const session = await ctx.createSession({
+        userId: platformAdmin.id,
+        currentOrgId: organization.id,
+      });
+
+      const trpcCtx = createTestTRPCContext({
+        prisma: ctx.prisma,
+        sessionId: session.id,
+        session,
+        user: {
+          id: platformAdmin.id,
+          email: platformAdmin.email,
+          isAdmin: platformAdmin.isAdmin,
+        },
+      });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.organization.transferOwnership({
+        memberId: memberMembership.id,
+      });
+
+      expect(result.success).toBe(true);
+
+      // Restore original state for other tests
+      await ctx.prisma.organizationMember.update({
+        where: { id: membership.id },
+        data: { role: "owner" },
+      });
+      await ctx.prisma.organizationMember.update({
+        where: { id: memberMembership.id },
+        data: { role: "member" },
       });
     });
   });
