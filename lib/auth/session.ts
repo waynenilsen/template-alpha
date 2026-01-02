@@ -1,5 +1,14 @@
 import type { PrismaClient, Session } from "../generated/prisma/client";
 
+// Transaction-compatible Prisma client type (for use in $transaction callbacks)
+type TransactionClient = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
+>;
+
+// Type that accepts both full PrismaClient and transaction clients
+type PrismaClientLike = PrismaClient | TransactionClient;
+
 // Session duration: 7 days in milliseconds
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -33,7 +42,7 @@ export const SESSION_COOKIE_OPTIONS = {
  * Create a new session in the database
  */
 export async function createSession(
-  prisma: PrismaClient,
+  prisma: PrismaClientLike,
   userId: string,
   currentOrgId?: string | null,
 ): Promise<Session> {
