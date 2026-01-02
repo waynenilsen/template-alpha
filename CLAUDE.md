@@ -78,6 +78,26 @@ This ensures:
 - Code is properly formatted with Biome
 - All formatted changes are staged for commit
 
+## Git Workflow
+
+**See [commit-message.md](./commit-message.md) for full commit message guidelines.**
+
+This project uses Conventional Commits with an amend-and-force-push workflow:
+
+```bash
+# First commit
+git add .
+git commit -m "feat(scope): description"
+git push -u origin <branch-name>
+
+# Subsequent changes - amend instead of new commits
+git add .
+git commit --amend --no-edit
+git push --force-with-lease
+```
+
+This keeps one clean commit per feature/fix instead of cluttering history with WIP commits.
+
 ## Code Conventions
 
 ### File Organization
