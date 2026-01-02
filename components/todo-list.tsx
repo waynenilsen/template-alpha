@@ -73,7 +73,10 @@ export function TodoList({ userRole }: TodoListProps) {
     <div className="space-y-6">
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div
+          className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+          data-testid="todo-stats"
+        >
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -81,7 +84,12 @@ export function TodoList({ userRole }: TodoListProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
+              <div
+                className="text-2xl font-bold"
+                data-testid="todo-stats-total"
+              >
+                {stats.total}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -91,7 +99,10 @@ export function TodoList({ userRole }: TodoListProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+              <div
+                className="text-2xl font-bold text-green-600"
+                data-testid="todo-stats-completed"
+              >
                 {stats.completed}
               </div>
             </CardContent>
@@ -103,7 +114,10 @@ export function TodoList({ userRole }: TodoListProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-amber-600">
+              <div
+                className="text-2xl font-bold text-amber-600"
+                data-testid="todo-stats-pending"
+              >
                 {stats.pending}
               </div>
             </CardContent>
@@ -115,28 +129,39 @@ export function TodoList({ userRole }: TodoListProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.completionRate}%</div>
+              <div
+                className="text-2xl font-bold"
+                data-testid="todo-stats-progress"
+              >
+                {stats.completionRate}%
+              </div>
             </CardContent>
           </Card>
         </div>
       )}
 
       {/* Create todo form */}
-      <Card>
+      <Card data-testid="todo-create-card">
         <CardContent className="pt-6">
           {isCreating ? (
-            <form onSubmit={handleCreateTodo} className="flex gap-2">
+            <form
+              onSubmit={handleCreateTodo}
+              className="flex gap-2"
+              data-testid="todo-create-form"
+            >
               <Input
                 placeholder="What needs to be done?"
                 value={newTodoTitle}
                 onChange={(e) => setNewTodoTitle(e.target.value)}
                 disabled={createMutation.isPending}
                 autoFocus
+                data-testid="todo-create-input"
               />
               <Button
                 type="submit"
                 size="icon"
                 disabled={createMutation.isPending || !newTodoTitle.trim()}
+                data-testid="todo-create-submit"
               >
                 {createMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -153,6 +178,7 @@ export function TodoList({ userRole }: TodoListProps) {
                   setNewTodoTitle("");
                 }}
                 disabled={createMutation.isPending}
+                data-testid="todo-create-cancel"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -162,6 +188,7 @@ export function TodoList({ userRole }: TodoListProps) {
               variant="outline"
               className="w-full justify-start gap-2"
               onClick={() => setIsCreating(true)}
+              data-testid="todo-add-button"
             >
               <Plus className="h-4 w-4" />
               Add a todo
@@ -171,25 +198,34 @@ export function TodoList({ userRole }: TodoListProps) {
       </Card>
 
       {/* Todo list */}
-      <Card>
+      <Card data-testid="todo-list-card">
         <CardHeader>
           <CardTitle>Todos</CardTitle>
         </CardHeader>
         <CardContent>
           {todosQuery.isLoading ? (
-            <div className="flex items-center justify-center py-8">
+            <div
+              className="flex items-center justify-center py-8"
+              data-testid="todo-list-loading"
+            >
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : todos.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
+            <div
+              className="py-8 text-center text-muted-foreground"
+              data-testid="todo-list-empty"
+            >
               No todos yet. Create one to get started!
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2" data-testid="todo-list">
               {todos.map((todo) => (
                 <div
                   key={todo.id}
                   className="flex items-center gap-3 rounded-lg border p-3"
+                  data-testid={`todo-item-${todo.id}`}
+                  data-todo-id={todo.id}
+                  data-todo-completed={todo.completed}
                 >
                   <Checkbox
                     checked={todo.completed}
@@ -197,6 +233,7 @@ export function TodoList({ userRole }: TodoListProps) {
                       toggleMutation.mutate({ id: todo.id })
                     }
                     disabled={toggleMutation.isPending}
+                    data-testid={`todo-checkbox-${todo.id}`}
                   />
                   <div className="flex-1 min-w-0">
                     <p
@@ -204,11 +241,15 @@ export function TodoList({ userRole }: TodoListProps) {
                         "text-sm font-medium truncate",
                         todo.completed && "text-muted-foreground line-through",
                       )}
+                      data-testid={`todo-title-${todo.id}`}
                     >
                       {todo.title}
                     </p>
                     {todo.description && (
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p
+                        className="text-xs text-muted-foreground truncate"
+                        data-testid={`todo-description-${todo.id}`}
+                      >
                         {todo.description}
                       </p>
                     )}
@@ -220,6 +261,7 @@ export function TodoList({ userRole }: TodoListProps) {
                       className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       onClick={() => deleteMutation.mutate({ id: todo.id })}
                       disabled={deleteMutation.isPending}
+                      data-testid={`todo-delete-${todo.id}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
