@@ -43,7 +43,7 @@ export function Dashboard({
               currentOrgId={currentOrgId}
             />
           </div>
-          <UserNav email={user.email} />
+          <UserNav email={user.email} isAdmin={user.isAdmin} />
         </div>
       </header>
 

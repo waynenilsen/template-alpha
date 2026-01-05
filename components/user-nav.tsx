@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut, Settings, User } from "lucide-react";
+import { LogOut, Settings, Shield, User } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,9 +18,10 @@ import { signOut } from "@/lib/auth/actions";
 
 export interface UserNavProps {
   email: string;
+  isAdmin?: boolean;
 }
 
-export function UserNav({ email }: UserNavProps) {
+export function UserNav({ email, isAdmin }: UserNavProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -55,6 +57,14 @@ export function UserNav({ email }: UserNavProps) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {isAdmin && (
+          <DropdownMenuItem asChild>
+            <Link href="/admin">
+              <Shield className="mr-2 h-4 w-4" />
+              <span>Admin Dashboard</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem disabled>
           <User className="mr-2 h-4 w-4" />
           <span>Profile</span>
