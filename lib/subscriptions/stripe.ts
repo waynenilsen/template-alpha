@@ -13,6 +13,9 @@ let stripeInstance: Stripe | null = null;
 /**
  * Get the Stripe client instance.
  * Throws if STRIPE_SECRET_KEY is not configured.
+ *
+ * If STRIPE_MOCK_URL is set, the client will connect to stripe-mock
+ * instead of the real Stripe API. Use `bun stripe:mock` to start stripe-mock.
  */
 /* c8 ignore start - requires actual Stripe credentials */
 export function getStripe(): Stripe {
@@ -28,9 +31,17 @@ export function getStripe(): Stripe {
     );
   }
 
+  const mockUrl = process.env.STRIPE_MOCK_URL;
+
   stripeInstance = new Stripe(secretKey, {
     apiVersion: "2025-12-15.clover",
     typescript: true,
+    // Connect to stripe-mock if STRIPE_MOCK_URL is set
+    ...(mockUrl && {
+      host: new URL(mockUrl).hostname,
+      port: Number.parseInt(new URL(mockUrl).port, 10) || 80,
+      protocol: new URL(mockUrl).protocol.replace(":", "") as "http" | "https",
+    }),
   });
 
   return stripeInstance;

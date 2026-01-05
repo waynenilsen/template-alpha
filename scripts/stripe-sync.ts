@@ -87,10 +87,21 @@ async function main() {
     process.exit(1);
   }
 
-  // Initialize Stripe
+  // Initialize Stripe (with optional mock URL for local development)
+  const mockUrl = process.env.STRIPE_MOCK_URL;
   const stripe = new Stripe(stripeSecretKey, {
     apiVersion: "2025-12-15.clover",
+    // Connect to stripe-mock if STRIPE_MOCK_URL is set
+    ...(mockUrl && {
+      host: new URL(mockUrl).hostname,
+      port: Number.parseInt(new URL(mockUrl).port, 10) || 80,
+      protocol: new URL(mockUrl).protocol.replace(":", "") as "http" | "https",
+    }),
   });
+
+  if (mockUrl) {
+    log(`Using stripe-mock at ${mockUrl}`, colors.yellow);
+  }
 
   logStep("Verifying Stripe connection...");
   try {
