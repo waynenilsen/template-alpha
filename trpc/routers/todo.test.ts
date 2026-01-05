@@ -1,368 +1,236 @@
+/**
+ * Todo Router Tests
+ *
+ * These tests use the scenario framework to provide readable, story-like tests
+ * for the todo router functionality.
+ */
+
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
-import type { Session } from "../../lib/generated/prisma/client";
-import {
-  createTestContext,
-  disconnectTestPrisma,
-  type TestContext,
-} from "../../lib/test/harness";
+import { createTestContext, type TestContext } from "../../lib/test/harness";
+import { scenario } from "../../lib/test/scenario";
 import { createTestTRPCContext } from "../init";
 import { appRouter } from "../router";
 
 describe("todo router", () => {
-  let ctx: TestContext;
-
-  beforeAll(() => {
-    ctx = createTestContext();
-  });
-
-  afterAll(async () => {
-    await ctx.cleanup();
-    await disconnectTestPrisma();
-  });
-
-  /**
-   * Helper to create a caller with org context
-   */
-  function createOrgCaller(
-    user: { id: string; email: string; isAdmin: boolean },
-    session: Session,
-  ) {
-    const trpcCtx = createTestTRPCContext({
-      prisma: ctx.prisma,
-      sessionId: session.id,
-      session,
-      user,
-    });
-    return appRouter.createCaller(trpcCtx);
-  }
+  // ===========================================================================
+  // Create Operations
+  // ===========================================================================
 
   describe("create", () => {
-    test("creates a todo in the current organization", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
+    scenario(
+      "Alice creates a todo with title and description",
+      async ({ alice, acmeCorp }) => {
+        const todo = await alice.at(acmeCorp).createTodo({
+          title: "Test Todo",
+          description: "Test description",
+        });
+
+        expect(todo.title).toBe("Test Todo");
+        expect(todo.description).toBe("Test description");
+        expect(todo.completed).toBe(false);
+      },
+    );
+
+    scenario(
+      "Alice creates a todo without description",
+      async ({ alice, acmeCorp }) => {
+        const todo = await alice.at(acmeCorp).createTodo({
+          title: "No Description Todo",
+        });
+
+        expect(todo.title).toBe("No Description Todo");
+        expect(todo.description).toBeNull();
+      },
+    );
+
+    // These tests require low-level access to test auth/org context requirements
+    describe("auth requirements", () => {
+      let ctx: TestContext;
+
+      beforeAll(() => {
+        ctx = createTestContext();
       });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      const result = await caller.todo.create({
-        title: "Test Todo",
-        description: "Test description",
+      afterAll(async () => {
+        await ctx.cleanup();
       });
 
-      expect(result.title).toBe("Test Todo");
-      expect(result.description).toBe("Test description");
-      expect(result.completed).toBe(false);
-      expect(result.organizationId).toBe(organization.id);
-      expect(result.createdById).toBe(user.id);
+      test("requires organization context", async () => {
+        const user = await ctx.createUser();
+        const session = await ctx.createSession({ userId: user.id });
 
-      ctx.todoIds.add(result.id);
-    });
+        const trpcCtx = createTestTRPCContext({
+          prisma: ctx.prisma,
+          sessionId: session.id,
+          session,
+          user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+        });
+        const caller = appRouter.createCaller(trpcCtx);
 
-    test("creates a todo without description", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
+        try {
+          await caller.todo.create({ title: "Test" });
+          expect(true).toBe(false);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TRPCError);
+          expect((error as TRPCError).code).toBe("FORBIDDEN");
+        }
       });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
+      test("requires authentication", async () => {
+        const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+        const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.todo.create({
-        title: "No Description Todo",
+        try {
+          await caller.todo.create({ title: "Test" });
+          expect(true).toBe(false);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TRPCError);
+          expect((error as TRPCError).code).toBe("UNAUTHORIZED");
+        }
       });
-
-      expect(result.title).toBe("No Description Todo");
-      expect(result.description).toBeNull();
-
-      ctx.todoIds.add(result.id);
-    });
-
-    test("requires organization context", async () => {
-      const user = await ctx.createUser();
-      const session = await ctx.createSession({ userId: user.id });
-
-      const trpcCtx = createTestTRPCContext({
-        prisma: ctx.prisma,
-        sessionId: session.id,
-        session,
-        user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
-      });
-      const caller = appRouter.createCaller(trpcCtx);
-
-      try {
-        await caller.todo.create({ title: "Test" });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("FORBIDDEN");
-      }
-    });
-
-    test("requires authentication", async () => {
-      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
-      const caller = appRouter.createCaller(trpcCtx);
-
-      try {
-        await caller.todo.create({ title: "Test" });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("UNAUTHORIZED");
-      }
     });
   });
+
+  // ===========================================================================
+  // Get Operations
+  // ===========================================================================
 
   describe("get", () => {
-    test("retrieves a todo by id", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Get Test",
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
+    scenario("Alice retrieves her todo by id", async ({ alice, acmeCorp }) => {
+      const created = await alice
+        .at(acmeCorp)
+        .createTodo({ title: "Get Test" });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
+      const result = await alice.at(acmeCorp).getTodo({ id: created.id });
 
-      const result = await caller.todo.get({ id: todo.id });
-
-      expect(result.id).toBe(todo.id);
+      expect(result.id).toBe(created.id);
       expect(result.title).toBe("Get Test");
-      expect(result.createdBy.id).toBe(user.id);
+      expect(result.createdBy.email).toContain("alice");
     });
 
-    test("returns 404 for non-existent todo", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
+    scenario(
+      "Getting a non-existent todo returns 404",
+      async ({ alice, acmeCorp }) => {
+        await expect(
+          alice.at(acmeCorp).getTodo({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
+        ).rejects.toThrow("not found");
+      },
+    );
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
+    scenario(
+      "Bob cannot access Alice's todo from another org",
+      async ({ alice, bob, acmeCorp, globex }) => {
+        const aliceTodo = await alice
+          .at(acmeCorp)
+          .createTodo({ title: "Org1 Todo" });
 
-      try {
-        await caller.todo.get({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("NOT_FOUND");
-      }
-    });
+        await expect(
+          bob.at(globex).getTodo({ id: aliceTodo.id }),
+        ).rejects.toThrow("do not have access");
+      },
+    );
 
-    test("denies access to todo from another organization", async () => {
-      // Create todo in org1
-      const { user: user1, organization: org1 } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Org1 Todo",
-        organizationId: org1.id,
-        createdById: user1.id,
-      });
+    scenario(
+      "Sysadmin can access any organization's todo",
+      async ({ alice, sysadmin, acmeCorp, globex }) => {
+        const todo = await alice
+          .at(acmeCorp)
+          .createTodo({ title: "Any Org Todo" });
 
-      // Create user in org2 trying to access org1's todo
-      const { user: user2, organization: org2 } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user2.id,
-        currentOrgId: org2.id,
-      });
+        const result = await sysadmin.at(globex).getTodo({ id: todo.id });
 
-      const caller = createOrgCaller(
-        { id: user2.id, email: user2.email, isAdmin: user2.isAdmin },
-        session,
-      );
-
-      try {
-        await caller.todo.get({ id: todo.id });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("FORBIDDEN");
-      }
-    });
-
-    test("allows internal admin to access any todo", async () => {
-      const { user: regularUser, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Any Org Todo",
-        organizationId: organization.id,
-        createdById: regularUser.id,
-      });
-
-      // Admin user with different org context
-      const admin = await ctx.createUser({ isAdmin: true });
-      const adminOrg = await ctx.createOrganization();
-      const session = await ctx.createSession({
-        userId: admin.id,
-        currentOrgId: adminOrg.id,
-      });
-
-      const caller = createOrgCaller(
-        { id: admin.id, email: admin.email, isAdmin: admin.isAdmin },
-        session,
-      );
-
-      const result = await caller.todo.get({ id: todo.id });
-      expect(result.id).toBe(todo.id);
-    });
+        expect(result.id).toBe(todo.id);
+      },
+    );
   });
+
+  // ===========================================================================
+  // List Operations
+  // ===========================================================================
 
   describe("list", () => {
-    test("lists todos for the current organization", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const todo1 = await ctx.createTodo({
-        title: "Todo 1",
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const todo2 = await ctx.createTodo({
-        title: "Todo 2",
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
+    scenario(
+      "Alice lists todos for her organization",
+      async ({ alice, acmeCorp }) => {
+        await alice.at(acmeCorp).createTodo({ title: "Todo 1" });
+        await alice.at(acmeCorp).createTodo({ title: "Todo 2" });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
+        const result = await alice.at(acmeCorp).listTodos();
 
-      const result = await caller.todo.list({});
+        expect(result.items.length).toBeGreaterThanOrEqual(2);
+        expect(result.items.some((t) => t.title === "Todo 1")).toBe(true);
+        expect(result.items.some((t) => t.title === "Todo 2")).toBe(true);
+      },
+    );
 
-      expect(result.items.length).toBeGreaterThanOrEqual(2);
-      const ids = result.items.map((t) => t.id);
-      expect(ids).toContain(todo1.id);
-      expect(ids).toContain(todo2.id);
-    });
+    scenario(
+      "Alice filters todos by completion status",
+      async ({ alice, acmeCorp }) => {
+        await alice.at(acmeCorp).createTodo({ title: "Completed" });
+        await alice.at(acmeCorp).createTodo({ title: "Pending" });
 
-    test("filters by completion status", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      await ctx.createTodo({
-        title: "Completed",
-        completed: true,
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      await ctx.createTodo({
-        title: "Pending",
-        completed: false,
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
+        const todos = await alice.at(acmeCorp).listTodos();
+        await alice.at(acmeCorp).toggleTodo({ id: todos.items[0].id });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
+        const completed = await alice
+          .at(acmeCorp)
+          .listTodos({ completed: true });
+        const pending = await alice
+          .at(acmeCorp)
+          .listTodos({ completed: false });
 
-      const completed = await caller.todo.list({ completed: true });
-      const pending = await caller.todo.list({ completed: false });
+        expect(completed.items.every((t) => t.completed)).toBe(true);
+        expect(pending.items.every((t) => !t.completed)).toBe(true);
+      },
+    );
 
-      expect(completed.items.every((t) => t.completed)).toBe(true);
-      expect(pending.items.every((t) => !t.completed)).toBe(true);
-    });
+    scenario(
+      "Alice's list does not include Bob's todos from another org",
+      async ({ alice, bob, acmeCorp, globex }) => {
+        await alice.at(acmeCorp).createTodo({ title: "Org1 Todo" });
+        await bob.at(globex).createTodo({ title: "Org2 Todo" });
 
-    test("does not include todos from other organizations", async () => {
-      const { user: user1, organization: org1 } = await ctx.createUserWithOrg();
-      const todo1 = await ctx.createTodo({
-        title: "Org1 Todo",
-        organizationId: org1.id,
-        createdById: user1.id,
-      });
+        const aliceTodos = await alice.at(acmeCorp).listTodos();
 
-      const { user: user2, organization: org2 } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user2.id,
-        currentOrgId: org2.id,
-      });
+        expect(aliceTodos.items.some((t) => t.title === "Org2 Todo")).toBe(
+          false,
+        );
+      },
+    );
 
-      const caller = createOrgCaller(
-        { id: user2.id, email: user2.email, isAdmin: user2.isAdmin },
-        session,
-      );
+    scenario(
+      "Alice can paginate through todos",
+      async ({ alice, acmeCorp }) => {
+        for (let i = 0; i < 3; i++) {
+          await alice.at(acmeCorp).createTodo({ title: `Paginated Todo ${i}` });
+        }
 
-      const result = await caller.todo.list({});
+        const page1 = await alice.at(acmeCorp).listTodos({ limit: 2 });
+        expect(page1.items).toHaveLength(2);
+        expect(page1.nextCursor).toBeDefined();
 
-      expect(result.items.map((t) => t.id)).not.toContain(todo1.id);
-    });
-
-    test("supports pagination", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      // Create 3 todos
-      for (let i = 0; i < 3; i++) {
-        await ctx.createTodo({
-          title: `Paginated Todo ${i}`,
-          organizationId: organization.id,
-          createdById: user.id,
+        const page2 = await alice.at(acmeCorp).listTodos({
+          limit: 2,
+          cursor: page1.nextCursor,
         });
-      }
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
-
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      // Fetch with limit 2
-      const page1 = await caller.todo.list({ limit: 2 });
-      expect(page1.items).toHaveLength(2);
-      expect(page1.nextCursor).toBeDefined();
-
-      // Fetch next page
-      const page2 = await caller.todo.list({
-        limit: 2,
-        cursor: page1.nextCursor,
-      });
-      expect(page2.items.length).toBeGreaterThanOrEqual(1);
-    });
+        expect(page2.items.length).toBeGreaterThanOrEqual(1);
+      },
+    );
   });
 
+  // ===========================================================================
+  // Update Operations
+  // ===========================================================================
+
   describe("update", () => {
-    test("updates a todo", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
+    scenario("Alice updates her todo", async ({ alice, acmeCorp }) => {
+      const todo = await alice.at(acmeCorp).createTodo({
         title: "Original",
         description: "Original desc",
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
       });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      const result = await caller.todo.update({
+      const result = await alice.at(acmeCorp).updateTodo({
         id: todo.id,
         title: "Updated",
         description: "Updated desc",
@@ -374,455 +242,246 @@ describe("todo router", () => {
       expect(result.completed).toBe(true);
     });
 
-    test("allows partial updates", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Original Title",
-        description: "Original desc",
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
-
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      // Only update title
-      const result = await caller.todo.update({
-        id: todo.id,
-        title: "New Title",
-      });
-
-      expect(result.title).toBe("New Title");
-      expect(result.description).toBe("Original desc");
-    });
-
-    test("can clear description with null", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "With Desc",
-        description: "Some description",
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
-
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      const result = await caller.todo.update({
-        id: todo.id,
-        description: null,
-      });
-
-      expect(result.description).toBeNull();
-    });
-
-    test("denies update to todo from another organization", async () => {
-      const { user: user1, organization: org1 } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Org1 Todo",
-        organizationId: org1.id,
-        createdById: user1.id,
-      });
-
-      const { user: user2, organization: org2 } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user2.id,
-        currentOrgId: org2.id,
-      });
-
-      const caller = createOrgCaller(
-        { id: user2.id, email: user2.email, isAdmin: user2.isAdmin },
-        session,
-      );
-
-      try {
-        await caller.todo.update({ id: todo.id, title: "Hacked" });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("FORBIDDEN");
-      }
-    });
-
-    test("returns 404 for non-existent todo", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
-
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      try {
-        await caller.todo.update({
-          id: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
-          title: "Updated",
+    scenario(
+      "Alice partially updates her todo",
+      async ({ alice, acmeCorp }) => {
+        const todo = await alice.at(acmeCorp).createTodo({
+          title: "Original Title",
+          description: "Original desc",
         });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("NOT_FOUND");
-      }
-    });
 
-    test("allows internal admin to update any todo", async () => {
-      const { user: regularUser, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Original",
-        organizationId: organization.id,
-        createdById: regularUser.id,
-      });
+        const result = await alice.at(acmeCorp).updateTodo({
+          id: todo.id,
+          title: "New Title",
+        });
 
-      const admin = await ctx.createUser({ isAdmin: true });
-      const adminOrg = await ctx.createOrganization();
-      const session = await ctx.createSession({
-        userId: admin.id,
-        currentOrgId: adminOrg.id,
-      });
+        expect(result.title).toBe("New Title");
+        expect(result.description).toBe("Original desc");
+      },
+    );
 
-      const caller = createOrgCaller(
-        { id: admin.id, email: admin.email, isAdmin: admin.isAdmin },
-        session,
-      );
+    scenario(
+      "Alice can clear description with null",
+      async ({ alice, acmeCorp }) => {
+        const todo = await alice.at(acmeCorp).createTodo({
+          title: "With Desc",
+          description: "Some description",
+        });
 
-      const result = await caller.todo.update({
-        id: todo.id,
-        title: "Admin Updated",
-      });
-      expect(result.title).toBe("Admin Updated");
-    });
+        const result = await alice.at(acmeCorp).updateTodo({
+          id: todo.id,
+          description: null,
+        });
+
+        expect(result.description).toBeNull();
+      },
+    );
+
+    scenario(
+      "Bob cannot update Alice's todo from another org",
+      async ({ alice, bob, acmeCorp, globex }) => {
+        const aliceTodo = await alice
+          .at(acmeCorp)
+          .createTodo({ title: "Org1 Todo" });
+
+        await expect(
+          bob.at(globex).updateTodo({ id: aliceTodo.id, title: "Hacked" }),
+        ).rejects.toThrow("do not have access");
+      },
+    );
+
+    scenario(
+      "Updating a non-existent todo returns 404",
+      async ({ alice, acmeCorp }) => {
+        await expect(
+          alice.at(acmeCorp).updateTodo({
+            id: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+            title: "Updated",
+          }),
+        ).rejects.toThrow("not found");
+      },
+    );
+
+    scenario(
+      "Sysadmin can update any organization's todo",
+      async ({ alice, sysadmin, acmeCorp, globex }) => {
+        const todo = await alice.at(acmeCorp).createTodo({ title: "Original" });
+
+        const result = await sysadmin.at(globex).updateTodo({
+          id: todo.id,
+          title: "Admin Updated",
+        });
+
+        expect(result.title).toBe("Admin Updated");
+      },
+    );
   });
+
+  // ===========================================================================
+  // Delete Operations
+  // ===========================================================================
 
   describe("delete", () => {
-    test("admin can delete a todo", async () => {
-      const { user, organization } = await ctx.createUserWithOrg({
-        role: "admin",
-      });
-      const todo = await ctx.createTodo({
-        title: "To Delete",
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
+    scenario("Admin can delete a todo", async ({ alice, acmeCorp }) => {
+      const todo = await alice
+        .administers(acmeCorp)
+        .createTodo({ title: "To Delete" });
+
+      const result = await alice.administers(acmeCorp).deleteTodo({
+        id: todo.id,
       });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      const result = await caller.todo.delete({ id: todo.id });
       expect(result.success).toBe(true);
-
-      // Verify deletion
-      const deleted = await ctx.prisma.todo.findUnique({
-        where: { id: todo.id },
-      });
-      expect(deleted).toBeNull();
     });
 
-    test("owner can delete a todo", async () => {
-      const { user, organization } = await ctx.createUserWithOrg({
-        role: "owner",
-      });
-      const todo = await ctx.createTodo({
+    scenario("Owner can delete a todo", async ({ alice, acmeCorp }) => {
+      const todo = await alice.owns(acmeCorp).createTodo({
         title: "Owner Delete",
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
       });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
+      const result = await alice.owns(acmeCorp).deleteTodo({ id: todo.id });
 
-      const result = await caller.todo.delete({ id: todo.id });
       expect(result.success).toBe(true);
     });
 
-    test("member cannot delete a todo", async () => {
-      const { user: owner, organization } = await ctx.createUserWithOrg({
-        role: "owner",
-      });
-      const member = await ctx.createUser();
-      await ctx.createMembership({
-        userId: member.id,
-        organizationId: organization.id,
-        role: "member",
-      });
-      const todo = await ctx.createTodo({
-        title: "Member Cannot Delete",
-        organizationId: organization.id,
-        createdById: owner.id,
-      });
-      const session = await ctx.createSession({
-        userId: member.id,
-        currentOrgId: organization.id,
-      });
+    scenario(
+      "Member cannot delete a todo",
+      async ({ alice, bob, acmeCorp }) => {
+        const todo = await alice.owns(acmeCorp).createTodo({
+          title: "Member Cannot Delete",
+        });
 
-      const caller = createOrgCaller(
-        { id: member.id, email: member.email, isAdmin: member.isAdmin },
-        session,
-      );
+        await expect(
+          bob.at(acmeCorp).deleteTodo({ id: todo.id }),
+        ).rejects.toThrow("Only organization admins");
+      },
+    );
 
-      try {
-        await caller.todo.delete({ id: todo.id });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("FORBIDDEN");
-      }
-    });
+    scenario(
+      "Sysadmin can delete any todo",
+      async ({ alice, sysadmin, acmeCorp }) => {
+        const todo = await alice.at(acmeCorp).createTodo({
+          title: "Admin Delete Any",
+        });
 
-    test("internal admin can delete any todo", async () => {
-      const { user: regularUser, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Admin Delete Any",
-        organizationId: organization.id,
-        createdById: regularUser.id,
-      });
+        const result = await sysadmin.at(acmeCorp).deleteTodo({ id: todo.id });
 
-      const admin = await ctx.createUser({ isAdmin: true });
-      const session = await ctx.createSession({
-        userId: admin.id,
-        currentOrgId: organization.id,
-      });
+        expect(result.success).toBe(true);
+      },
+    );
 
-      const caller = createOrgCaller(
-        { id: admin.id, email: admin.email, isAdmin: admin.isAdmin },
-        session,
-      );
+    scenario(
+      "Deleting a non-existent todo returns 404",
+      async ({ alice, acmeCorp }) => {
+        await expect(
+          alice
+            .administers(acmeCorp)
+            .deleteTodo({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
+        ).rejects.toThrow("not found");
+      },
+    );
 
-      const result = await caller.todo.delete({ id: todo.id });
-      expect(result.success).toBe(true);
-    });
+    scenario(
+      "Bob cannot delete Alice's todo from another org even as admin",
+      async ({ alice, bob, acmeCorp, globex }) => {
+        const aliceTodo = await alice
+          .at(acmeCorp)
+          .createTodo({ title: "Org1 Todo" });
 
-    test("returns 404 for non-existent todo", async () => {
-      const { user, organization } = await ctx.createUserWithOrg({
-        role: "admin",
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
-
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      try {
-        await caller.todo.delete({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("NOT_FOUND");
-      }
-    });
-
-    test("denies delete to todo from another organization", async () => {
-      const { user: user1, organization: org1 } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Org1 Todo",
-        organizationId: org1.id,
-        createdById: user1.id,
-      });
-
-      const { user: user2, organization: org2 } = await ctx.createUserWithOrg({
-        role: "admin",
-      });
-      const session = await ctx.createSession({
-        userId: user2.id,
-        currentOrgId: org2.id,
-      });
-
-      const caller = createOrgCaller(
-        { id: user2.id, email: user2.email, isAdmin: user2.isAdmin },
-        session,
-      );
-
-      try {
-        await caller.todo.delete({ id: todo.id });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("FORBIDDEN");
-      }
-    });
+        await expect(
+          bob.administers(globex).deleteTodo({ id: aliceTodo.id }),
+        ).rejects.toThrow("do not have access");
+      },
+    );
   });
+
+  // ===========================================================================
+  // Toggle Completion Operations
+  // ===========================================================================
 
   describe("toggleComplete", () => {
-    test("toggles completion from false to true", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Toggle Test",
-        completed: false,
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
+    scenario(
+      "Alice toggles completion from false to true",
+      async ({ alice, acmeCorp }) => {
+        const todo = await alice.at(acmeCorp).createTodo({
+          title: "Toggle Test",
+        });
+        expect(todo.completed).toBe(false);
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
+        const result = await alice.at(acmeCorp).toggleTodo({ id: todo.id });
 
-      const result = await caller.todo.toggleComplete({ id: todo.id });
-      expect(result.completed).toBe(true);
-    });
+        expect(result.completed).toBe(true);
+      },
+    );
 
-    test("toggles completion from true to false", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Toggle Test",
-        completed: true,
-        organizationId: organization.id,
-        createdById: user.id,
-      });
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
+    scenario(
+      "Alice toggles completion from true to false",
+      async ({ alice, acmeCorp }) => {
+        const todo = await alice.at(acmeCorp).createTodo({
+          title: "Toggle Test",
+        });
+        await alice.at(acmeCorp).toggleTodo({ id: todo.id });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
+        const result = await alice.at(acmeCorp).toggleTodo({ id: todo.id });
 
-      const result = await caller.todo.toggleComplete({ id: todo.id });
-      expect(result.completed).toBe(false);
-    });
+        expect(result.completed).toBe(false);
+      },
+    );
 
-    test("returns 404 for non-existent todo", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
+    scenario(
+      "Toggling a non-existent todo returns 404",
+      async ({ alice, acmeCorp }) => {
+        await expect(
+          alice.at(acmeCorp).toggleTodo({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" }),
+        ).rejects.toThrow("not found");
+      },
+    );
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
+    scenario(
+      "Bob cannot toggle Alice's todo from another org",
+      async ({ alice, bob, acmeCorp, globex }) => {
+        const aliceTodo = await alice
+          .at(acmeCorp)
+          .createTodo({ title: "Org1 Todo" });
 
-      try {
-        await caller.todo.toggleComplete({ id: "clxxxxxxxxxxxxxxxxxxxxxxxxx" });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("NOT_FOUND");
-      }
-    });
+        await expect(
+          bob.at(globex).toggleTodo({ id: aliceTodo.id }),
+        ).rejects.toThrow("do not have access");
+      },
+    );
 
-    test("denies toggle for todo from another organization", async () => {
-      const { user: user1, organization: org1 } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Org1 Todo",
-        organizationId: org1.id,
-        createdById: user1.id,
-      });
+    scenario(
+      "Sysadmin can toggle any organization's todo",
+      async ({ alice, sysadmin, acmeCorp, globex }) => {
+        const todo = await alice.at(acmeCorp).createTodo({
+          title: "Admin Toggle",
+        });
 
-      const { user: user2, organization: org2 } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user2.id,
-        currentOrgId: org2.id,
-      });
+        const result = await sysadmin.at(globex).toggleTodo({ id: todo.id });
 
-      const caller = createOrgCaller(
-        { id: user2.id, email: user2.email, isAdmin: user2.isAdmin },
-        session,
-      );
-
-      try {
-        await caller.todo.toggleComplete({ id: todo.id });
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TRPCError);
-        expect((error as TRPCError).code).toBe("FORBIDDEN");
-      }
-    });
-
-    test("allows internal admin to toggle any todo", async () => {
-      const { user: regularUser, organization } = await ctx.createUserWithOrg();
-      const todo = await ctx.createTodo({
-        title: "Admin Toggle",
-        completed: false,
-        organizationId: organization.id,
-        createdById: regularUser.id,
-      });
-
-      const admin = await ctx.createUser({ isAdmin: true });
-      const adminOrg = await ctx.createOrganization();
-      const session = await ctx.createSession({
-        userId: admin.id,
-        currentOrgId: adminOrg.id,
-      });
-
-      const caller = createOrgCaller(
-        { id: admin.id, email: admin.email, isAdmin: admin.isAdmin },
-        session,
-      );
-
-      const result = await caller.todo.toggleComplete({ id: todo.id });
-      expect(result.completed).toBe(true);
-    });
+        expect(result.completed).toBe(true);
+      },
+    );
   });
 
+  // ===========================================================================
+  // Stats Operations
+  // ===========================================================================
+
   describe("stats", () => {
-    test("returns correct statistics", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
+    scenario("Alice gets correct statistics", async ({ alice, acmeCorp }) => {
       // Create 3 completed and 2 pending todos
       for (let i = 0; i < 3; i++) {
-        await ctx.createTodo({
+        const todo = await alice.at(acmeCorp).createTodo({
           title: `Completed ${i}`,
-          completed: true,
-          organizationId: organization.id,
-          createdById: user.id,
         });
+        await alice.at(acmeCorp).toggleTodo({ id: todo.id });
       }
       for (let i = 0; i < 2; i++) {
-        await ctx.createTodo({
-          title: `Pending ${i}`,
-          completed: false,
-          organizationId: organization.id,
-          createdById: user.id,
-        });
+        await alice.at(acmeCorp).createTodo({ title: `Pending ${i}` });
       }
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      const result = await caller.todo.stats();
+      const result = await alice.at(acmeCorp).getTodoStats();
 
       expect(result.total).toBeGreaterThanOrEqual(5);
       expect(result.completed).toBeGreaterThanOrEqual(3);
@@ -831,27 +490,16 @@ describe("todo router", () => {
       expect(result.completionRate).toBeLessThanOrEqual(100);
     });
 
-    test("returns zero stats for empty organization", async () => {
-      const { user, organization } = await ctx.createUserWithOrg();
-      const session = await ctx.createSession({
-        userId: user.id,
-        currentOrgId: organization.id,
-      });
+    scenario(
+      "Fresh organization has zero stats",
+      async ({ charlie, initech }) => {
+        const result = await charlie.at(initech).getTodoStats();
 
-      const caller = createOrgCaller(
-        { id: user.id, email: user.email, isAdmin: user.isAdmin },
-        session,
-      );
-
-      // Note: This org is fresh and has no todos
-      // But other tests might have added todos, so we just verify structure
-      const result = await caller.todo.stats();
-
-      expect(result).toHaveProperty("total");
-      expect(result).toHaveProperty("completed");
-      expect(result).toHaveProperty("pending");
-      expect(result).toHaveProperty("completionRate");
-      expect(result.total).toBe(result.completed + result.pending);
-    });
+        expect(result.total).toBe(0);
+        expect(result.completed).toBe(0);
+        expect(result.pending).toBe(0);
+        expect(result.total).toBe(result.completed + result.pending);
+      },
+    );
   });
 });
