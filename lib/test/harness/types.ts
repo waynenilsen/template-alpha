@@ -3,15 +3,20 @@
  */
 
 import type {
+  BillingInterval,
   MemberRole,
   Organization,
   OrganizationMember,
   PasswordResetToken,
+  Plan,
   PrismaClient,
   Session,
+  Subscription,
+  SubscriptionStatus,
   Todo,
   User,
 } from "../../generated/prisma/client";
+import type { PlanLimit } from "../../subscriptions/plans";
 
 export interface CreateUserOptions {
   email?: string;
@@ -48,6 +53,33 @@ export interface CreatePasswordResetTokenOptions {
   userId: string;
   expiresAt?: Date;
   usedAt?: Date | null;
+}
+
+export interface CreatePlanOptions {
+  slug?: string;
+  name?: string;
+  description?: string;
+  priceMonthly?: number;
+  priceYearly?: number | null;
+  limits?: PlanLimit;
+  sortOrder?: number;
+  active?: boolean;
+  isDefault?: boolean;
+  stripeProductId?: string | null;
+  stripePriceMonthlyId?: string | null;
+  stripePriceYearlyId?: string | null;
+}
+
+export interface CreateSubscriptionOptions {
+  organizationId: string;
+  planId: string;
+  status?: SubscriptionStatus;
+  interval?: BillingInterval;
+  stripeSubscriptionId?: string | null;
+  stripeCustomerId?: string | null;
+  currentPeriodStart?: Date | null;
+  currentPeriodEnd?: Date | null;
+  cancelAtPeriodEnd?: boolean;
 }
 
 export interface PasswordResetTokenWithPlainToken {
@@ -87,6 +119,8 @@ export interface TestContext {
   sessionIds: Set<string>;
   todoIds: Set<string>;
   passwordResetTokenIds: Set<string>;
+  planIds: Set<string>;
+  subscriptionIds: Set<string>;
 
   // Factory methods
   createUser: (options?: CreateUserOptions) => Promise<User>;
@@ -101,6 +135,10 @@ export interface TestContext {
   createPasswordResetToken: (
     options: CreatePasswordResetTokenOptions,
   ) => Promise<PasswordResetTokenWithPlainToken>;
+  createPlan: (options?: CreatePlanOptions) => Promise<Plan>;
+  createSubscription: (
+    options: CreateSubscriptionOptions,
+  ) => Promise<Subscription>;
 
   // Convenience methods
   createUserWithOrg: (

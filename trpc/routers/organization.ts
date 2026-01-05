@@ -5,6 +5,7 @@ import { hasMinimumRole } from "../../lib/auth/authorization";
 import { normalizeEmail } from "../../lib/auth/email";
 import { switchOrganization } from "../../lib/auth/session";
 import { sendInvitationEmail } from "../../lib/email/send";
+import { checkMemberLimit } from "../../lib/subscriptions/service";
 import {
   createTRPCRouter,
   orgProcedure,
@@ -417,6 +418,7 @@ export const organizationRouter = createTRPCRouter({
   /**
    * Invite a member to the organization
    * Only admins and owners can invite
+   * Enforces member limits based on subscription plan
    */
   inviteMember: orgProcedure
     .input(inviteMemberInput)
@@ -439,6 +441,26 @@ export const organizationRouter = createTRPCRouter({
 
       // Normalize email to lowercase for case-insensitive handling
       const email = normalizeEmail(input.email);
+
+      // Check member limits
+      try {
+        const limitCheck = await checkMemberLimit(
+          ctx.prisma,
+          ctx.organizationId,
+        );
+        if (!limitCheck.allowed) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Member limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan for more team members.`,
+          });
+        }
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        // If limit checking fails, allow the operation to proceed
+        console.warn("Failed to check member limit:", error);
+      }
 
       // Check if user is already a member
       const existingMember = await ctx.prisma.organizationMember.findFirst({

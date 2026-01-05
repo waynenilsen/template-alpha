@@ -1,6 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 import { authorizeMinimumRole } from "../../lib/auth/authorization";
+import {
+  checkTodoLimit,
+  LimitExceededError,
+} from "../../lib/subscriptions/service";
 import { createTRPCRouter, orgProcedure } from "../init";
 
 /**
@@ -59,10 +63,37 @@ const deleteTodoInput = z.object({
 export const todoRouter = createTRPCRouter({
   /**
    * Create a new todo
+   * Enforces plan limits - free tier is limited to 10 todos
    */
   create: orgProcedure
     .input(createTodoInput)
     .mutation(async ({ ctx, input }) => {
+      // Check subscription limits
+      try {
+        const limitCheck = await checkTodoLimit(ctx.prisma, ctx.organizationId);
+        if (!limitCheck.allowed) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Todo limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan for more todos.`,
+          });
+        }
+      } catch (error) {
+        // If the error is already a TRPCError, rethrow it
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        // If limit checking fails (e.g., no plans configured), allow the operation
+        // This makes the system gracefully degrade before stripe:sync is run
+        if (error instanceof LimitExceededError) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: error.message,
+          });
+        }
+        // Log other errors but don't block the operation
+        console.warn("Failed to check todo limit:", error);
+      }
+
       const todo = await ctx.prisma.todo.create({
         data: {
           title: input.title,

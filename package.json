@@ -22,6 +22,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
+    "stripe:sync": "bun run scripts/stripe-sync.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
@@ -81,6 +82,7 @@
     "recharts": "2.15.4",
     "server-only": "^0.0.1",
     "sonner": "^2.0.7",
+    "stripe": "^20.1.0",
     "superjson": "^2.2.6",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2",

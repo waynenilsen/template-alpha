@@ -26,5 +26,14 @@ coveragePathIgnorePatterns = [
   "lib/test/harness/session-mock.ts",
   # tmid session.ts contains getSessionFromCookies which requires Next.js runtime
   # The testable parts (runWithSession, getSession) are covered
-  "lib/trpc/middlewares/session.ts"
+  "lib/trpc/middlewares/session.ts",
+  # Stripe integration code - requires actual Stripe credentials to test
+  # getStripe/getWebhookSecret are runtime-only, tested via integration tests
+  "lib/subscriptions/stripe.ts",
+  # Stripe billing operations - createCheckoutSession/createBillingPortalSession
+  # require actual Stripe credentials to test
+  "lib/subscriptions/stripe-billing.ts",
+  # Subscription router - Stripe-dependent mutations cannot be tested without credentials
+  # Testable procedures (getPlans, getCurrent, getUsage) are thoroughly tested
+  "trpc/routers/subscription.ts"
 ]
