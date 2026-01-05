@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Settings, Shield, User } from "lucide-react";
+import { LogOut, Settings, Shield } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -65,12 +65,6 @@ export function UserNav({ email, isAdmin }: UserNavProps) {
             </Link>
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem asChild>
-          <Link href="/settings/account">
-            <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings/account">
             <Settings className="mr-2 h-4 w-4" />
