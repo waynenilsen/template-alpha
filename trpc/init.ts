@@ -1,4 +1,4 @@
-import { initTRPC, TRPCError } from "@trpc/server";
+import { initTRPC } from "@trpc/server";
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import { cache } from "react";
 import superjson from "superjson";
@@ -11,6 +11,9 @@ import type { PrismaClient, Session } from "../lib/generated/prisma/client";
 
 /**
  * Context type for tRPC procedures
+ *
+ * Note: Authentication and authorization are now handled by the tmid middleware library.
+ * This context is kept minimal for backwards compatibility with tests and server-side calls.
  */
 export interface TRPCContext {
   prisma: PrismaClient;
@@ -172,89 +175,9 @@ export const createTRPCRouter = t.router;
 export const createCallerFactory = t.createCallerFactory;
 
 /**
- * Public (unauthenticated) procedure
- * Anyone can call these procedures
+ * Public procedure - base procedure for all endpoints
+ *
+ * Authentication and authorization are handled by the tmid middleware library.
+ * Use tmid().use(auth()).use(orgContext()).build(...) within procedure handlers.
  */
 export const publicProcedure = t.procedure;
-
-/**
- * Protected (authenticated) procedure middleware
- * Ensures user is authenticated before proceeding
- */
-const authMiddleware = t.middleware(async ({ ctx, next }) => {
-  if (!ctx.session || !ctx.user) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "You must be logged in to access this resource",
-    });
-  }
-
-  return next({
-    ctx: {
-      ...ctx,
-      // Narrow types - guaranteed to be non-null after middleware
-      session: ctx.session,
-      user: ctx.user,
-    },
-  });
-});
-
-/**
- * Protected (authenticated) procedure
- * Only authenticated users can call these
- */
-export const protectedProcedure = t.procedure.use(authMiddleware);
-
-/**
- * Organization-scoped procedure middleware
- * Ensures user is authenticated AND has an active organization context
- */
-const orgMiddleware = t.middleware(async ({ ctx, next }) => {
-  if (!ctx.session || !ctx.user) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "You must be logged in to access this resource",
-    });
-  }
-
-  if (!ctx.session.currentOrgId) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "You must select an organization to access this resource",
-    });
-  }
-
-  // Verify user is still a member of the organization
-  const membership = await ctx.prisma.organizationMember.findFirst({
-    where: {
-      userId: ctx.user.id,
-      organizationId: ctx.session.currentOrgId,
-    },
-    include: {
-      organization: true,
-    },
-  });
-
-  if (!membership && !ctx.user.isAdmin) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "You are not a member of this organization",
-    });
-  }
-
-  return next({
-    ctx: {
-      ...ctx,
-      session: ctx.session,
-      user: ctx.user,
-      organizationId: ctx.session.currentOrgId,
-      membership: membership ?? null,
-    },
-  });
-});
-
-/**
- * Organization-scoped procedure
- * User must be authenticated and have an active organization context
- */
-export const orgProcedure = t.procedure.use(orgMiddleware);

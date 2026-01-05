@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { tmid, withPrisma } from "../lib/trpc";
 import { createTRPCRouter, publicProcedure } from "./init";
 import {
   adminRouter,
@@ -44,22 +45,26 @@ export const appRouter = createTRPCRouter({
    * Stats procedure - returns platform statistics
    * Uses real database queries to count users, orgs, and todos
    */
-  stats: publicProcedure.query(async ({ ctx }) => {
-    const [totalUsers, totalTenants, totalTodos, completedTodos] =
-      await Promise.all([
-        ctx.prisma.user.count(),
-        ctx.prisma.organization.count(),
-        ctx.prisma.todo.count(),
-        ctx.prisma.todo.count({ where: { completed: true } }),
-      ]);
+  stats: publicProcedure.query(async () => {
+    return tmid()
+      .use(withPrisma())
+      .build(async ({ prisma }) => {
+        const [totalUsers, totalTenants, totalTodos, completedTodos] =
+          await Promise.all([
+            prisma.user.count(),
+            prisma.organization.count(),
+            prisma.todo.count(),
+            prisma.todo.count({ where: { completed: true } }),
+          ]);
 
-    return {
-      totalUsers,
-      totalTenants,
-      totalTodos,
-      completedTodos,
-      timestamp: new Date(),
-    };
+        return {
+          totalUsers,
+          totalTenants,
+          totalTodos,
+          completedTodos,
+          timestamp: new Date(),
+        };
+      });
   }),
 
   /**

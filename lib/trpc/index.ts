@@ -1,4 +1,4 @@
-export type { OrgContext, SessionData } from "./middlewares";
+export type { OrgContext, PrismaContext, SessionData } from "./middlewares";
 // For testing - use runWithSession for parallel-safe session mocking
 export {
   adminOnly,
@@ -6,6 +6,7 @@ export {
   getSession,
   orgContext,
   runWithSession,
+  withPrisma,
 } from "./middlewares";
 export type { TRPCBaseContext } from "./tmid";
 export { tmid } from "./tmid";
