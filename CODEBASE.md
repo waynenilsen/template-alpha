@@ -115,14 +115,30 @@ trpc/
     └── todo.test.ts
 ```
 
-**Procedure Types:**
-- `publicProcedure` - No auth required
-- `protectedProcedure` - Requires authenticated session
-- `orgProcedure` - Requires auth + active organization
+**Middleware Pattern (tmid):**
+
+All procedures use `publicProcedure` and compose middleware via `tmid()`:
+
+```typescript
+import { tmid } from "@/lib/trpc";
+import { auth, orgContext, withPrisma } from "@/lib/trpc/middlewares";
+
+// Public (no auth)
+tmid().use(withPrisma()).build(...)
+
+// Authenticated
+tmid().use(withPrisma()).use(auth()).build(...)
+
+// Org-scoped (auth + organization context)
+tmid().use(withPrisma()).use(auth()).use(orgContext()).build(...)
+
+// Admin-only
+tmid().use(withPrisma()).use(auth()).use(adminOnly()).build(...)
+```
 
 **Adding a new router:**
 1. Create `trpc/routers/myrouter.ts`
-2. Define procedures using appropriate base procedure
+2. Define procedures using `publicProcedure` with tmid middleware
 3. Import and merge in `trpc/router.ts`
 4. Add tests in `trpc/routers/myrouter.test.ts`
 
@@ -176,13 +192,13 @@ scripts/
 ### Multi-Tenant Architecture
 - Shared database, shared schema
 - All resources scoped via `organizationId`
-- Row-level security enforced in application layer (tRPC middleware)
+- Row-level security enforced in application layer via tmid middlewares
 
 ### Authentication Flow
 1. User signs in via `auth.signIn`
 2. Session created in database, ID stored in cookie
-3. `protectedProcedure` validates session on each request
-4. `orgProcedure` additionally validates organization membership
+3. `auth()` middleware validates session on each request
+4. `orgContext()` middleware validates organization membership
 
 ### Testing Pattern
 - Real PostgreSQL for all tests (never mock the database)
@@ -203,7 +219,7 @@ scripts/
 
 ### New API Endpoint
 1. Add procedure to existing router or create new router
-2. Use appropriate procedure type (`public`/`protected`/`org`)
+2. Compose tmid middlewares (`withPrisma`, `auth`, `orgContext`, `adminOnly`)
 3. Add comprehensive tests
 
 ### New Database Model
