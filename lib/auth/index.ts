@@ -20,6 +20,7 @@ export {
   isMemberOf,
   ROLE_HIERARCHY,
 } from "./authorization";
+export { normalizeEmail } from "./email";
 export {
   hashPassword,
   type PasswordValidationResult,

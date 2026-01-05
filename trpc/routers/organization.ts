@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 import { hasMinimumRole } from "../../lib/auth/authorization";
+import { normalizeEmail } from "../../lib/auth/email";
 import { switchOrganization } from "../../lib/auth/session";
 import { sendInvitationEmail } from "../../lib/email/send";
 import {
@@ -436,11 +437,14 @@ export const organizationRouter = createTRPCRouter({
         });
       }
 
+      // Normalize email to lowercase for case-insensitive handling
+      const email = normalizeEmail(input.email);
+
       // Check if user is already a member
       const existingMember = await ctx.prisma.organizationMember.findFirst({
         where: {
           organizationId: ctx.organizationId,
-          user: { email: input.email },
+          user: { email },
         },
       });
 
@@ -456,7 +460,7 @@ export const organizationRouter = createTRPCRouter({
         await ctx.prisma.organizationInvitation.findFirst({
           where: {
             organizationId: ctx.organizationId,
-            email: input.email,
+            email,
             acceptedAt: null,
             expiresAt: { gt: new Date() },
           },
@@ -478,7 +482,7 @@ export const organizationRouter = createTRPCRouter({
       await ctx.prisma.organizationInvitation.deleteMany({
         where: {
           organizationId: ctx.organizationId,
-          email: input.email,
+          email,
         },
       });
 
@@ -486,7 +490,7 @@ export const organizationRouter = createTRPCRouter({
       const invitation = await ctx.prisma.organizationInvitation.create({
         data: {
           organizationId: ctx.organizationId,
-          email: input.email,
+          email,
           role: input.role,
           tokenHash: hash,
           invitedById: ctx.user.id,
@@ -502,7 +506,7 @@ export const organizationRouter = createTRPCRouter({
       // Send invitation email
       try {
         await sendInvitationEmail(
-          input.email,
+          email,
           invitation.organization.name,
           ctx.user.email,
           token,
@@ -633,8 +637,8 @@ export const organizationRouter = createTRPCRouter({
       }
       /* c8 ignore stop */
 
-      // Check if the invitation email matches the logged in user
-      if (invitation.email !== ctx.user.email) {
+      // Check if the invitation email matches the logged in user (case-insensitive)
+      if (normalizeEmail(invitation.email) !== normalizeEmail(ctx.user.email)) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "This invitation was sent to a different email address",

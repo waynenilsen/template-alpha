@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 import { getUserOrganizations, isMemberOf } from "../../lib/auth/authorization";
+import { normalizeEmail } from "../../lib/auth/email";
 import {
   hashPassword,
   passwordSchema,
@@ -76,9 +77,12 @@ export const authRouter = createTRPCRouter({
   signUp: publicProcedure
     .input(signUpInput)
     .mutation(async ({ ctx, input }) => {
+      // Normalize email to lowercase for case-insensitive handling
+      const email = normalizeEmail(input.email);
+
       // Check if email is already taken
       const existingUser = await ctx.prisma.user.findUnique({
-        where: { email: input.email },
+        where: { email },
       });
 
       if (existingUser) {
@@ -96,13 +100,13 @@ export const authRouter = createTRPCRouter({
           // Create user
           const newUser = await tx.user.create({
             data: {
-              email: input.email,
+              email,
               passwordHash,
             },
           });
 
           // Generate org name and slug from email
-          const emailPrefix = input.email.split("@")[0];
+          const emailPrefix = email.split("@")[0];
           const orgName = `${emailPrefix}'s Organization`;
           const baseSlug = emailPrefix.toLowerCase().replace(/[^a-z0-9]/g, "-");
           const uniqueSlug = `${baseSlug}-${newUser.id.slice(-8)}`;
@@ -157,9 +161,12 @@ export const authRouter = createTRPCRouter({
   signIn: publicProcedure
     .input(signInInput)
     .mutation(async ({ ctx, input }) => {
+      // Normalize email to lowercase for case-insensitive handling
+      const email = normalizeEmail(input.email);
+
       // Find user by email
       const user = await ctx.prisma.user.findUnique({
-        where: { email: input.email },
+        where: { email },
       });
 
       if (!user) {
