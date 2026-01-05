@@ -42,6 +42,7 @@ export function OrgPicker({ organizations, currentOrgId }: OrgPickerProps) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
+  const [createOrgDialogOpen, setCreateOrgDialogOpen] = useState(false);
 
   const currentOrg = organizations.find((org) => org.id === currentOrgId);
   const canManageOrg =
@@ -137,22 +138,23 @@ export function OrgPicker({ organizations, currentOrgId }: OrgPickerProps) {
             )}
             <CommandSeparator />
             <CommandGroup>
-              <CreateOrganizationDialog
-                trigger={
-                  <CommandItem
-                    onSelect={(_e) => {
-                      // Prevent the command from closing
-                    }}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Organization
-                  </CommandItem>
-                }
-              />
+              <CommandItem
+                onSelect={() => {
+                  setOpen(false);
+                  setCreateOrgDialogOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Organization
+              </CommandItem>
             </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
+      <CreateOrganizationDialog
+        open={createOrgDialogOpen}
+        onOpenChange={setCreateOrgDialogOpen}
+      />
     </Popover>
   );
 }
