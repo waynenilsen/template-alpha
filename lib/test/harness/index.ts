@@ -20,6 +20,15 @@ export { createTestUserWithPassword } from "./helpers";
 // Prisma utilities
 export { disconnectTestPrisma, getTestPrisma } from "./prisma";
 
+// Session mocking for tmid middleware tests
+export {
+  createMockSession,
+  createMockSessionFromUserWithOrg,
+  createTestSessionProvider,
+  mockSession,
+  unmockSession,
+} from "./session-mock";
+
 // Types
 export type {
   CreateMembershipOptions,
