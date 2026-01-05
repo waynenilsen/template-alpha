@@ -24,6 +24,7 @@
     "db:studio": "prisma studio",
     "stripe:mock": "./scripts/setup-stripe-mock.sh",
     "stripe:sync": "bun run scripts/stripe-sync.ts",
+    "s3:start": "./scripts/setup-minio.sh",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
