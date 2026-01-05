@@ -4,6 +4,7 @@ import {
   disconnectTestPrisma,
   type TestContext,
 } from "../lib/test/harness";
+import { runWithSession } from "../lib/test/harness/session-mock";
 import { createTestTRPCContext } from "./init";
 import { appRouter } from "./router";
 
@@ -57,7 +58,9 @@ describe("app router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.stats();
+      const result = await runWithSession(null, async () => {
+        return caller.stats();
+      });
 
       expect(typeof result.totalUsers).toBe("number");
       expect(typeof result.totalTenants).toBe("number");
@@ -79,7 +82,9 @@ describe("app router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.stats();
+      const result = await runWithSession(null, async () => {
+        return caller.stats();
+      });
 
       expect(result.totalUsers).toBeGreaterThanOrEqual(1);
       expect(result.totalTenants).toBeGreaterThanOrEqual(1);

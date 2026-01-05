@@ -45,5 +45,8 @@ coveragePathIgnorePatterns = [
   "components/delete-account-dialog.tsx",
   "components/user-settings-form.tsx",
   # App pages are integration code tested via e2e tests
-  "app/**"
+  "app/**",
+  # trpc/init.ts contains createServerSideContext which requires Next.js runtime
+  # createTestTRPCContext is tested, but createServerSideContext needs cookies() from next/headers
+  "trpc/init.ts"
 ]

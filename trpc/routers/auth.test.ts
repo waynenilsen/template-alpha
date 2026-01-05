@@ -6,6 +6,10 @@ import {
   disconnectTestPrisma,
   type TestContext,
 } from "../../lib/test/harness";
+import {
+  createMockSession,
+  runWithSession,
+} from "../../lib/test/harness/session-mock";
 import { createTestTRPCContext } from "../init";
 import { appRouter } from "../router";
 
@@ -42,7 +46,10 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.signUp({ email, password });
+      // signUp is public - no session needed
+      const result = await runWithSession(null, async () => {
+        return caller.auth.signUp({ email, password });
+      });
 
       expect(result.user.email).toBe(email);
       expect(result.user.isAdmin).toBe(false);
@@ -82,14 +89,18 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       // Create first user
-      const result = await caller.auth.signUp({ email, password });
+      const result = await runWithSession(null, async () => {
+        return caller.auth.signUp({ email, password });
+      });
       ctx.userIds.add(result.user.id);
       ctx.sessionIds.add(result.session.id);
       ctx.organizationIds.add(result.organization.id);
 
       // Try to create duplicate
       try {
-        await caller.auth.signUp({ email, password });
+        await runWithSession(null, async () => {
+          return caller.auth.signUp({ email, password });
+        });
         expect(true).toBe(false); // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -105,7 +116,9 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.signUp({ email, password });
+        await runWithSession(null, async () => {
+          return caller.auth.signUp({ email, password });
+        });
         expect(true).toBe(false); // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -120,7 +133,9 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.signUp({ email, password });
+      const result = await runWithSession(null, async () => {
+        return caller.auth.signUp({ email, password });
+      });
 
       // Email should be stored as lowercase
       expect(result.user.email).toBe(email.toLowerCase());
@@ -138,16 +153,20 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       // Create first user with lowercase email
-      const result = await caller.auth.signUp({ email, password });
+      const result = await runWithSession(null, async () => {
+        return caller.auth.signUp({ email, password });
+      });
       ctx.userIds.add(result.user.id);
       ctx.sessionIds.add(result.session.id);
       ctx.organizationIds.add(result.organization.id);
 
       // Try to create duplicate with uppercase
       try {
-        await caller.auth.signUp({
-          email: email.toUpperCase(),
-          password,
+        await runWithSession(null, async () => {
+          return caller.auth.signUp({
+            email: email.toUpperCase(),
+            password,
+          });
         });
         expect(true).toBe(false); // Should not reach here
       } catch (error) {
@@ -164,9 +183,11 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.signIn({
-        email: user.email,
-        password,
+      const result = await runWithSession(null, async () => {
+        return caller.auth.signIn({
+          email: user.email,
+          password,
+        });
       });
 
       expect(result.user.id).toBe(user.id);
@@ -189,9 +210,11 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.signIn({
-        email: user.email,
-        password,
+      const result = await runWithSession(null, async () => {
+        return caller.auth.signIn({
+          email: user.email,
+          password,
+        });
       });
 
       expect(result.session.currentOrgId).toBe(org.id);
@@ -208,9 +231,11 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.signIn({
-          email: user.email,
-          password: "WrongPassword123",
+        await runWithSession(null, async () => {
+          return caller.auth.signIn({
+            email: user.email,
+            password: "WrongPassword123",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -224,9 +249,11 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.signIn({
-          email: "nonexistent@example.com",
-          password: "SomePassword123",
+        await runWithSession(null, async () => {
+          return caller.auth.signIn({
+            email: "nonexistent@example.com",
+            password: "SomePassword123",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -242,9 +269,11 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       // Sign in with uppercase email
-      const result = await caller.auth.signIn({
-        email: user.email.toUpperCase(),
-        password,
+      const result = await runWithSession(null, async () => {
+        return caller.auth.signIn({
+          email: user.email.toUpperCase(),
+          password,
+        });
       });
 
       expect(result.user.id).toBe(user.id);
@@ -260,6 +289,12 @@ describe("auth router", () => {
       const user = await ctx.createUser();
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -268,7 +303,9 @@ describe("auth router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.signOut();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.auth.signOut();
+      });
       expect(result.success).toBe(true);
 
       // Session should be deleted
@@ -283,7 +320,9 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.signOut();
+        await runWithSession(null, async () => {
+          return caller.auth.signOut();
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -300,6 +339,12 @@ describe("auth router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -308,7 +353,9 @@ describe("auth router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.me();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.auth.me();
+      });
 
       expect(result.user.id).toBe(user.id);
       expect(result.user.email).toBe(user.email);
@@ -322,7 +369,9 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.me();
+        await runWithSession(null, async () => {
+          return caller.auth.me();
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -351,6 +400,12 @@ describe("auth router", () => {
         currentOrgId: org1.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -359,7 +414,9 @@ describe("auth router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.switchOrg({ organizationId: org2.id });
+      const result = await runWithSession(mockSession, async () => {
+        return caller.auth.switchOrg({ organizationId: org2.id });
+      });
 
       expect(result.success).toBe(true);
       expect(result.currentOrgId).toBe(org2.id);
@@ -372,6 +429,12 @@ describe("auth router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -380,7 +443,9 @@ describe("auth router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.switchOrg({ organizationId: null });
+      const result = await runWithSession(mockSession, async () => {
+        return caller.auth.switchOrg({ organizationId: null });
+      });
 
       expect(result.success).toBe(true);
       expect(result.currentOrgId).toBeNull();
@@ -391,6 +456,12 @@ describe("auth router", () => {
       const org = await ctx.createOrganization();
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -400,7 +471,9 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.switchOrg({ organizationId: org.id });
+        await runWithSession(mockSession, async () => {
+          return caller.auth.switchOrg({ organizationId: org.id });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -413,6 +486,12 @@ describe("auth router", () => {
       const org = await ctx.createOrganization();
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -421,7 +500,9 @@ describe("auth router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.switchOrg({ organizationId: org.id });
+      const result = await runWithSession(mockSession, async () => {
+        return caller.auth.switchOrg({ organizationId: org.id });
+      });
 
       expect(result.success).toBe(true);
       expect(result.currentOrgId).toBe(org.id);
@@ -445,6 +526,12 @@ describe("auth router", () => {
       });
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -453,7 +540,9 @@ describe("auth router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.getOrganizations();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.auth.getOrganizations();
+      });
 
       expect(result).toHaveLength(2);
       expect(result.map((o) => o.id).sort()).toEqual([org1.id, org2.id].sort());
@@ -463,6 +552,12 @@ describe("auth router", () => {
       const user = await ctx.createUser();
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -471,7 +566,9 @@ describe("auth router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.getOrganizations();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.auth.getOrganizations();
+      });
 
       expect(result).toHaveLength(0);
     });
@@ -485,8 +582,10 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.requestPasswordReset({
-        email: user.email,
+      const result = await runWithSession(null, async () => {
+        return caller.auth.requestPasswordReset({
+          email: user.email,
+        });
       });
 
       expect(result.success).toBe(true);
@@ -509,8 +608,10 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.requestPasswordReset({
-        email: "nonexistent@example.com",
+      const result = await runWithSession(null, async () => {
+        return caller.auth.requestPasswordReset({
+          email: "nonexistent@example.com",
+        });
       });
 
       // Returns success to prevent email enumeration
@@ -529,8 +630,10 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.validateResetToken({
-        token: plainToken,
+      const result = await runWithSession(null, async () => {
+        return caller.auth.validateResetToken({
+          token: plainToken,
+        });
       });
 
       expect(result.valid).toBe(true);
@@ -540,8 +643,10 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.validateResetToken({
-        token: "invalid-token",
+      const result = await runWithSession(null, async () => {
+        return caller.auth.validateResetToken({
+          token: "invalid-token",
+        });
       });
 
       expect(result.valid).toBe(false);
@@ -558,8 +663,10 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.validateResetToken({
-        token: plainToken,
+      const result = await runWithSession(null, async () => {
+        return caller.auth.validateResetToken({
+          token: plainToken,
+        });
       });
 
       expect(result.valid).toBe(false);
@@ -576,8 +683,10 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.validateResetToken({
-        token: plainToken,
+      const result = await runWithSession(null, async () => {
+        return caller.auth.validateResetToken({
+          token: plainToken,
+        });
       });
 
       expect(result.valid).toBe(false);
@@ -595,9 +704,11 @@ describe("auth router", () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.resetPassword({
-        token: plainToken,
-        password: "NewPassword456",
+      const result = await runWithSession(null, async () => {
+        return caller.auth.resetPassword({
+          token: plainToken,
+          password: "NewPassword456",
+        });
       });
 
       expect(result.success).toBe(true);
@@ -608,9 +719,11 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.resetPassword({
-          token: "invalid-token",
-          password: "NewPassword456",
+        await runWithSession(null, async () => {
+          return caller.auth.resetPassword({
+            token: "invalid-token",
+            password: "NewPassword456",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -631,9 +744,11 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.resetPassword({
-          token: plainToken,
-          password: "NewPassword456",
+        await runWithSession(null, async () => {
+          return caller.auth.resetPassword({
+            token: plainToken,
+            password: "NewPassword456",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -654,9 +769,11 @@ describe("auth router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.resetPassword({
-          token: plainToken,
-          password: "NewPassword456",
+        await runWithSession(null, async () => {
+          return caller.auth.resetPassword({
+            token: plainToken,
+            password: "NewPassword456",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {

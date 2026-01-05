@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
 import {
+  createMockSession,
   createTestContext,
   disconnectTestPrisma,
+  runWithSession,
   type TestContext,
 } from "../../lib/test/harness";
 import { createTestTRPCContext } from "../init";
@@ -46,8 +48,16 @@ describe("admin router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       try {
-        await caller.admin.dashboard();
+        await runWithSession(mockSession, async () => {
+          await caller.admin.dashboard();
+        });
         expect(true).toBe(false); // Should not reach here
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -86,7 +96,15 @@ describe("admin router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.admin.dashboard();
+      const mockSession = createMockSession(session, {
+        id: adminUser.id,
+        email: adminUser.email,
+        isAdmin: adminUser.isAdmin,
+      });
+
+      const result = await runWithSession(mockSession, async () => {
+        return caller.admin.dashboard();
+      });
 
       // Verify stats structure
       expect(result.stats).toBeDefined();
@@ -142,7 +160,15 @@ describe("admin router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.admin.dashboard();
+      const mockSession = createMockSession(session, {
+        id: adminUser.id,
+        email: adminUser.email,
+        isAdmin: adminUser.isAdmin,
+      });
+
+      const result = await runWithSession(mockSession, async () => {
+        return caller.admin.dashboard();
+      });
 
       // Verify completion rate is a valid percentage
       expect(result.stats.completionRate).toBeGreaterThanOrEqual(0);

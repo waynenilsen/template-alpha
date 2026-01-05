@@ -5,6 +5,10 @@ import {
   disconnectTestPrisma,
   type TestContext,
 } from "../../lib/test/harness";
+import {
+  createMockSession,
+  runWithSession,
+} from "../../lib/test/harness/session-mock";
 import { createTestTRPCContext } from "../init";
 import { appRouter } from "../router";
 
@@ -45,6 +49,12 @@ describe("organization router", () => {
       const user = await ctx.createUser();
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -53,8 +63,10 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.create({
-        name: "Test Organization",
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.create({
+          name: "Test Organization",
+        });
       });
 
       expect(result.name).toBe("Test Organization");
@@ -80,6 +92,12 @@ describe("organization router", () => {
       const user = await ctx.createUser();
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -88,11 +106,18 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result1 = await caller.organization.create({ name: "Duplicate" });
+      const result1 = await runWithSession(mockSession, async () => {
+        return caller.organization.create({ name: "Duplicate" });
+      });
       ctx.organizationIds.add(result1.id);
 
       // Need new session for second org
       const session2 = await ctx.createSession({ userId: user.id });
+      const mockSession2 = createMockSession(session2, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
       const trpcCtx2 = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session2.id,
@@ -101,7 +126,9 @@ describe("organization router", () => {
       });
       const caller2 = appRouter.createCaller(trpcCtx2);
 
-      const result2 = await caller2.organization.create({ name: "Duplicate" });
+      const result2 = await runWithSession(mockSession2, async () => {
+        return caller2.organization.create({ name: "Duplicate" });
+      });
       ctx.organizationIds.add(result2.id);
 
       expect(result1.slug).toBe("duplicate");
@@ -120,6 +147,12 @@ describe("organization router", () => {
       const user = await ctx.createUser();
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -128,9 +161,11 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.create({
-        name: "My Org",
-        slug: "custom-slug-123",
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.create({
+          name: "My Org",
+          slug: "custom-slug-123",
+        });
       });
 
       expect(result.slug).toBe("custom-slug-123");
@@ -147,7 +182,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.create({ name: "Test" });
+        await runWithSession(null, async () => {
+          return caller.organization.create({ name: "Test" });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -164,6 +201,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -172,7 +215,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.get();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.get();
+      });
 
       expect(result.id).toBe(organization.id);
       expect(result.name).toBe(organization.name);
@@ -185,6 +230,12 @@ describe("organization router", () => {
       const user = await ctx.createUser();
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -194,7 +245,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.get();
+        await runWithSession(mockSession, async () => {
+          return caller.organization.get();
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -211,6 +264,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -219,7 +278,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.update({ name: "Updated Name" });
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.update({ name: "Updated Name" });
+      });
 
       expect(result.name).toBe("Updated Name");
     });
@@ -237,6 +298,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -245,8 +312,10 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.update({
-        name: "Admin Updated",
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.update({
+          name: "Admin Updated",
+        });
       });
 
       expect(result.name).toBe("Admin Updated");
@@ -265,6 +334,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: member.id,
+        email: member.email,
+        isAdmin: member.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -274,7 +349,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.update({ name: "Should Fail" });
+        await runWithSession(mockSession, async () => {
+          return caller.organization.update({ name: "Should Fail" });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -290,6 +367,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -299,7 +382,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.update({ slug: "existing-slug" });
+        await runWithSession(mockSession, async () => {
+          return caller.organization.update({ slug: "existing-slug" });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -316,6 +401,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -324,7 +415,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.delete();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.delete();
+      });
 
       expect(result.success).toBe(true);
 
@@ -352,6 +445,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -361,7 +460,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.delete();
+        await runWithSession(mockSession, async () => {
+          return caller.organization.delete();
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -377,6 +478,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: platformAdmin.id,
+        email: platformAdmin.email,
+        isAdmin: platformAdmin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -389,7 +496,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.delete();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.delete();
+      });
 
       expect(result.success).toBe(true);
       ctx.organizationIds.delete(organization.id);
@@ -411,6 +520,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -419,7 +534,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.listMembers();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.listMembers();
+      });
 
       expect(result).toHaveLength(2);
       expect(result.find((m) => m.userId === user.id)?.role).toBe("owner");
@@ -433,6 +550,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -441,7 +564,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.listMembers();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.listMembers();
+      });
 
       expect(result[0].isCurrentUser).toBe(true);
     });
@@ -461,6 +586,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -469,9 +600,11 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.updateMemberRole({
-        memberId: membership.id,
-        role: "admin",
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.updateMemberRole({
+          memberId: membership.id,
+          role: "admin",
+        });
       });
 
       expect(result.role).toBe("admin");
@@ -496,6 +629,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -505,9 +644,11 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.updateMemberRole({
-          memberId: membership.id,
-          role: "admin",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.updateMemberRole({
+            memberId: membership.id,
+            role: "admin",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -529,6 +670,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -538,9 +685,11 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.updateMemberRole({
-          memberId: membership.id,
-          role: "member",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.updateMemberRole({
+            memberId: membership.id,
+            role: "member",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -556,6 +705,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -565,9 +720,11 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.updateMemberRole({
-          memberId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
-          role: "admin",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.updateMemberRole({
+            memberId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+            role: "admin",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -591,6 +748,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -599,8 +762,10 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.removeMember({
-        memberId: membership.id,
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.removeMember({
+          memberId: membership.id,
+        });
       });
 
       expect(result.success).toBe(true);
@@ -632,6 +797,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -640,8 +811,10 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.removeMember({
-        memberId: membership.id,
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.removeMember({
+          memberId: membership.id,
+        });
       });
 
       expect(result.success).toBe(true);
@@ -667,6 +840,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin1.id,
+        email: admin1.email,
+        isAdmin: admin1.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -676,7 +855,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.removeMember({ memberId: membership.id });
+        await runWithSession(mockSession, async () => {
+          return caller.organization.removeMember({ memberId: membership.id });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -697,6 +878,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -706,7 +893,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.removeMember({ memberId: membership.id });
+        await runWithSession(mockSession, async () => {
+          return caller.organization.removeMember({ memberId: membership.id });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -734,6 +923,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -743,7 +938,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.removeMember({ memberId: membership.id });
+        await runWithSession(mockSession, async () => {
+          return caller.organization.removeMember({ memberId: membership.id });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -770,6 +967,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: member1.id,
+        email: member1.email,
+        isAdmin: member1.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -783,7 +986,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.removeMember({ memberId: membership.id });
+        await runWithSession(mockSession, async () => {
+          return caller.organization.removeMember({ memberId: membership.id });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -806,6 +1011,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: member.id,
+        email: member.email,
+        isAdmin: member.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -814,7 +1025,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.leave();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.leave();
+      });
 
       expect(result.success).toBe(true);
       ctx.membershipIds.delete(membership.id);
@@ -833,6 +1046,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -841,7 +1060,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.leave();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.leave();
+      });
 
       expect(result.success).toBe(true);
       ctx.membershipIds.delete(membership.id);
@@ -854,6 +1075,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -863,7 +1090,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.leave();
+        await runWithSession(mockSession, async () => {
+          return caller.organization.leave();
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -886,6 +1115,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -894,8 +1129,10 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.transferOwnership({
-        memberId: memberMembership.id,
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.transferOwnership({
+          memberId: memberMembership.id,
+        });
       });
 
       expect(result.success).toBe(true);
@@ -925,6 +1162,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -934,8 +1177,10 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.transferOwnership({
-          memberId: membership.id,
+        await runWithSession(mockSession, async () => {
+          return caller.organization.transferOwnership({
+            memberId: membership.id,
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -951,6 +1196,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -960,8 +1211,10 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.transferOwnership({
-          memberId: membership.id,
+        await runWithSession(mockSession, async () => {
+          return caller.organization.transferOwnership({
+            memberId: membership.id,
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1072,6 +1325,12 @@ describe("organization router", () => {
       const invitee = await ctx.createUser();
       const session = await ctx.createSession({ userId: invitee.id });
 
+      const mockSession = createMockSession(session, {
+        id: invitee.id,
+        email: invitee.email,
+        isAdmin: invitee.isAdmin,
+      });
+
       // Create invitation
       const crypto = await import("node:crypto");
       const token = crypto.randomBytes(32).toString("hex");
@@ -1102,7 +1361,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.acceptInvitation({ token });
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.acceptInvitation({ token });
+      });
 
       expect(result.organizationId).toBe(organization.id);
       expect(result.role).toBe("member");
@@ -1127,6 +1388,12 @@ describe("organization router", () => {
       const { user: owner, organization } = await ctx.createUserWithOrg();
       const wrongUser = await ctx.createUser();
       const session = await ctx.createSession({ userId: wrongUser.id });
+
+      const mockSession = createMockSession(session, {
+        id: wrongUser.id,
+        email: wrongUser.email,
+        isAdmin: wrongUser.isAdmin,
+      });
 
       // Create invitation for different email
       const crypto = await import("node:crypto");
@@ -1159,7 +1426,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.acceptInvitation({ token });
+        await runWithSession(mockSession, async () => {
+          return caller.organization.acceptInvitation({ token });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -1181,6 +1450,12 @@ describe("organization router", () => {
         role: "member",
       });
       const session = await ctx.createSession({ userId: existingMember.id });
+
+      const mockSession = createMockSession(session, {
+        id: existingMember.id,
+        email: existingMember.email,
+        isAdmin: existingMember.isAdmin,
+      });
 
       // Create invitation
       const crypto = await import("node:crypto");
@@ -1213,7 +1488,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.acceptInvitation({ token });
+        await runWithSession(mockSession, async () => {
+          return caller.organization.acceptInvitation({ token });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -1233,6 +1510,12 @@ describe("organization router", () => {
       const session = await ctx.createSession({
         userId: user.id,
         currentOrgId: organization.id,
+      });
+
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
       });
 
       // Create invitation
@@ -1263,8 +1546,10 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.cancelInvitation({
-        invitationId: invitation.id,
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.cancelInvitation({
+          invitationId: invitation.id,
+        });
       });
 
       expect(result.success).toBe(true);
@@ -1287,6 +1572,12 @@ describe("organization router", () => {
       const session = await ctx.createSession({
         userId: member.id,
         currentOrgId: organization.id,
+      });
+
+      const mockSession = createMockSession(session, {
+        id: member.id,
+        email: member.email,
+        isAdmin: member.isAdmin,
       });
 
       // Create invitation
@@ -1318,8 +1609,10 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.cancelInvitation({
-          invitationId: invitation.id,
+        await runWithSession(mockSession, async () => {
+          return caller.organization.cancelInvitation({
+            invitationId: invitation.id,
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1343,6 +1636,12 @@ describe("organization router", () => {
       });
       invitationEmails.length = 0;
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1351,9 +1650,11 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.inviteMember({
-        email: "newinvitee@example.com",
-        role: "member",
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.inviteMember({
+          email: "newinvitee@example.com",
+          role: "member",
+        });
       });
 
       expect(result.email).toBe("newinvitee@example.com");
@@ -1383,6 +1684,12 @@ describe("organization router", () => {
       });
       invitationEmails.length = 0;
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1392,9 +1699,11 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       // Admin can invite member
-      const result = await caller.organization.inviteMember({
-        email: "memberfromadmin@example.com",
-        role: "member",
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.inviteMember({
+          email: "memberfromadmin@example.com",
+          role: "member",
+        });
       });
 
       expect(result.role).toBe("member");
@@ -1406,9 +1715,11 @@ describe("organization router", () => {
 
       // Admin cannot invite admin
       try {
-        await caller.organization.inviteMember({
-          email: "adminattempt@example.com",
-          role: "admin",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.inviteMember({
+            email: "adminattempt@example.com",
+            role: "admin",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1430,6 +1741,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: member.id,
+        email: member.email,
+        isAdmin: member.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1439,9 +1756,11 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.inviteMember({
-          email: "test@example.com",
-          role: "member",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.inviteMember({
+            email: "test@example.com",
+            role: "member",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1463,6 +1782,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1472,9 +1797,11 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.inviteMember({
-          email: existingMember.email,
-          role: "member",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.inviteMember({
+            email: existingMember.email,
+            role: "member",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1492,6 +1819,12 @@ describe("organization router", () => {
       });
       invitationEmails.length = 0;
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1501,16 +1834,20 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       // Send first invitation
-      const result = await caller.organization.inviteMember({
-        email: "duplicate@example.com",
-        role: "member",
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.inviteMember({
+          email: "duplicate@example.com",
+          role: "member",
+        });
       });
 
       // Try to send second invitation to same email
       try {
-        await caller.organization.inviteMember({
-          email: "duplicate@example.com",
-          role: "member",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.inviteMember({
+            email: "duplicate@example.com",
+            role: "member",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1534,6 +1871,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1543,8 +1886,10 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.cancelInvitation({
-          invitationId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.cancelInvitation({
+            invitationId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1558,6 +1903,12 @@ describe("organization router", () => {
       const session = await ctx.createSession({
         userId: user.id,
         currentOrgId: organization.id,
+      });
+
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
       });
 
       // Create accepted invitation
@@ -1590,8 +1941,10 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.cancelInvitation({
-          invitationId: invitation.id,
+        await runWithSession(mockSession, async () => {
+          return caller.organization.cancelInvitation({
+            invitationId: invitation.id,
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1615,6 +1968,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1624,8 +1983,10 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.removeMember({
-          memberId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.removeMember({
+            memberId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1655,6 +2016,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: member.id,
+        email: member.email,
+        isAdmin: member.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1664,9 +2031,11 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.updateMemberRole({
-          memberId: otherMembership.id,
-          role: "admin",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.updateMemberRole({
+            memberId: otherMembership.id,
+            role: "admin",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1684,6 +2053,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1693,8 +2068,10 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.transferOwnership({
-          memberId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+        await runWithSession(mockSession, async () => {
+          return caller.organization.transferOwnership({
+            memberId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -1717,6 +2094,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: platformAdmin.id,
+        email: platformAdmin.email,
+        isAdmin: platformAdmin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1729,8 +2112,10 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.transferOwnership({
-        memberId: memberMembership.id,
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.transferOwnership({
+          memberId: memberMembership.id,
+        });
       });
 
       expect(result.success).toBe(true);
@@ -1753,6 +2138,12 @@ describe("organization router", () => {
       const session = await ctx.createSession({
         userId: user.id,
         currentOrgId: organization.id,
+      });
+
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
       });
 
       // Create invitations
@@ -1789,7 +2180,9 @@ describe("organization router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.organization.listInvitations();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.organization.listInvitations();
+      });
 
       expect(result).toHaveLength(2);
       expect(result.map((i) => i.email).sort()).toEqual([
@@ -1816,6 +2209,12 @@ describe("organization router", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: member.id,
+        email: member.email,
+        isAdmin: member.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -1825,7 +2224,9 @@ describe("organization router", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.organization.listInvitations();
+        await runWithSession(mockSession, async () => {
+          return caller.organization.listInvitations();
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);

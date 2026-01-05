@@ -7,6 +7,10 @@ import {
   type TestContext,
 } from "../lib/test/harness";
 import {
+  createMockSession,
+  runWithSession,
+} from "../lib/test/harness/session-mock";
+import {
   createServerSideContext,
   createTestTRPCContext,
   createTRPCContext,
@@ -183,20 +187,20 @@ describe("tRPC init", () => {
     });
   });
 
-  describe("protectedProcedure middleware", () => {
+  describe("auth middleware (tmid)", () => {
     test("rejects unauthenticated requests", async () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.auth.me();
+        await runWithSession(null, async () => {
+          return caller.auth.me();
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
         expect((error as TRPCError).code).toBe("UNAUTHORIZED");
-        expect((error as TRPCError).message).toBe(
-          "You must be logged in to access this resource",
-        );
+        expect((error as TRPCError).message).toBe("Not authenticated");
       }
     });
 
@@ -207,6 +211,12 @@ describe("tRPC init", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -215,18 +225,22 @@ describe("tRPC init", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.auth.me();
+      const result = await runWithSession(mockSession, async () => {
+        return caller.auth.me();
+      });
       expect(result.user.id).toBe(user.id);
     });
   });
 
-  describe("orgProcedure middleware", () => {
+  describe("orgContext middleware (tmid)", () => {
     test("rejects when user is not authenticated", async () => {
       const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.todo.list({});
+        await runWithSession(null, async () => {
+          return caller.todo.list({});
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -238,6 +252,12 @@ describe("tRPC init", () => {
       const user = await ctx.createUser();
       const session = await ctx.createSession({ userId: user.id });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -247,7 +267,9 @@ describe("tRPC init", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.todo.list({});
+        await runWithSession(mockSession, async () => {
+          return caller.todo.list({});
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -267,6 +289,12 @@ describe("tRPC init", () => {
         currentOrgId: org.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -276,7 +304,9 @@ describe("tRPC init", () => {
       const caller = appRouter.createCaller(trpcCtx);
 
       try {
-        await caller.todo.list({});
+        await runWithSession(mockSession, async () => {
+          return caller.todo.list({});
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -296,6 +326,12 @@ describe("tRPC init", () => {
         currentOrgId: org.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: admin.id,
+        email: admin.email,
+        isAdmin: admin.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -304,7 +340,9 @@ describe("tRPC init", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.todo.list({});
+      const result = await runWithSession(mockSession, async () => {
+        return caller.todo.list({});
+      });
       expect(result.items).toBeDefined();
     });
 
@@ -315,6 +353,12 @@ describe("tRPC init", () => {
         currentOrgId: organization.id,
       });
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       const trpcCtx = createTestTRPCContext({
         prisma: ctx.prisma,
         sessionId: session.id,
@@ -323,7 +367,9 @@ describe("tRPC init", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.todo.list({});
+      const result = await runWithSession(mockSession, async () => {
+        return caller.todo.list({});
+      });
       expect(result.items).toBeDefined();
     });
   });

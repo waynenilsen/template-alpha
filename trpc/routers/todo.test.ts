@@ -9,6 +9,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
 import type { Plan } from "../../lib/generated/prisma/client";
 import { createTestContext, type TestContext } from "../../lib/test/harness";
+import {
+  createMockSession,
+  runWithSession,
+} from "../../lib/test/harness/session-mock";
 import { scenario } from "../../lib/test/scenario";
 import { createTestTRPCContext } from "../init";
 import { appRouter } from "../router";
@@ -61,6 +65,13 @@ describe("todo router", () => {
         const user = await ctx.createUser();
         const session = await ctx.createSession({ userId: user.id });
 
+        // Create mock session without org context
+        const mockSession = createMockSession(session, {
+          id: user.id,
+          email: user.email,
+          isAdmin: user.isAdmin,
+        });
+
         const trpcCtx = createTestTRPCContext({
           prisma: ctx.prisma,
           sessionId: session.id,
@@ -70,7 +81,9 @@ describe("todo router", () => {
         const caller = appRouter.createCaller(trpcCtx);
 
         try {
-          await caller.todo.create({ title: "Test" });
+          await runWithSession(mockSession, async () => {
+            await caller.todo.create({ title: "Test" });
+          });
           expect(true).toBe(false);
         } catch (error) {
           expect(error).toBeInstanceOf(TRPCError);
@@ -83,7 +96,10 @@ describe("todo router", () => {
         const caller = appRouter.createCaller(trpcCtx);
 
         try {
-          await caller.todo.create({ title: "Test" });
+          // No session - should fail with UNAUTHORIZED
+          await runWithSession(null, async () => {
+            await caller.todo.create({ title: "Test" });
+          });
           expect(true).toBe(false);
         } catch (error) {
           expect(error).toBeInstanceOf(TRPCError);
@@ -133,13 +149,23 @@ describe("todo router", () => {
         });
         const caller = appRouter.createCaller(trpcCtx);
 
+        const mockSession = createMockSession(session, {
+          id: user.id,
+          email: user.email,
+          isAdmin: user.isAdmin,
+        });
+
         // Create 2 todos (at limit)
-        await caller.todo.create({ title: "Todo 1" });
-        await caller.todo.create({ title: "Todo 2" });
+        await runWithSession(mockSession, async () => {
+          await caller.todo.create({ title: "Todo 1" });
+          await caller.todo.create({ title: "Todo 2" });
+        });
 
         // Third should fail
         try {
-          await caller.todo.create({ title: "Todo 3" });
+          await runWithSession(mockSession, async () => {
+            await caller.todo.create({ title: "Todo 3" });
+          });
           expect(true).toBe(false); // Should not reach here
         } catch (error) {
           expect(error).toBeInstanceOf(TRPCError);

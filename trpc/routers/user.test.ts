@@ -2,9 +2,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
 import { verifyPassword } from "../../lib/auth/password";
 import {
+  createMockSession,
   createTestContext,
   createTestUserWithPassword,
   disconnectTestPrisma,
+  runWithSession,
   type TestContext,
 } from "../../lib/test/harness";
 import { createTestTRPCContext } from "../init";
@@ -35,7 +37,15 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.user.getProfile();
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
+      const result = await runWithSession(mockSession, async () => {
+        return caller.user.getProfile();
+      });
 
       expect(result.id).toBe(user.id);
       expect(result.email).toBe(user.email);
@@ -57,7 +67,15 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.user.getProfile();
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
+      const result = await runWithSession(mockSession, async () => {
+        return caller.user.getProfile();
+      });
 
       expect(result.name).toBeNull();
     });
@@ -89,7 +107,15 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.user.updateProfile({ name: "New Name" });
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
+      const result = await runWithSession(mockSession, async () => {
+        return caller.user.updateProfile({ name: "New Name" });
+      });
 
       expect(result.name).toBe("New Name");
       expect(result.id).toBe(user.id);
@@ -127,8 +153,16 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       try {
-        await caller.user.updateProfile({ name: "" });
+        await runWithSession(mockSession, async () => {
+          await caller.user.updateProfile({ name: "" });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -148,8 +182,16 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       try {
-        await caller.user.updateProfile({ name: "a".repeat(101) });
+        await runWithSession(mockSession, async () => {
+          await caller.user.updateProfile({ name: "a".repeat(101) });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);
@@ -171,9 +213,17 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.user.changePassword({
-        currentPassword: password,
-        newPassword: "NewValidPass456",
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
+      const result = await runWithSession(mockSession, async () => {
+        return caller.user.changePassword({
+          currentPassword: password,
+          newPassword: "NewValidPass456",
+        });
       });
 
       expect(result.success).toBe(true);
@@ -202,10 +252,18 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       try {
-        await caller.user.changePassword({
-          currentPassword: "WrongPassword123",
-          newPassword: "NewValidPass456",
+        await runWithSession(mockSession, async () => {
+          await caller.user.changePassword({
+            currentPassword: "WrongPassword123",
+            newPassword: "NewValidPass456",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -227,10 +285,18 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       try {
-        await caller.user.changePassword({
-          currentPassword: password,
-          newPassword: "weak",
+        await runWithSession(mockSession, async () => {
+          await caller.user.changePassword({
+            currentPassword: password,
+            newPassword: "weak",
+          });
         });
         expect(true).toBe(false);
       } catch (error) {
@@ -269,7 +335,15 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const result = await caller.user.deleteAccount({ password });
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
+      const result = await runWithSession(mockSession, async () => {
+        return caller.user.deleteAccount({ password });
+      });
 
       expect(result.success).toBe(true);
 
@@ -302,8 +376,16 @@ describe("user router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       try {
-        await caller.user.deleteAccount({ password: "WrongPassword123" });
+        await runWithSession(mockSession, async () => {
+          await caller.user.deleteAccount({ password: "WrongPassword123" });
+        });
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(TRPCError);

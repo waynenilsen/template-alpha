@@ -16,6 +16,7 @@ import type {
   User,
 } from "../../generated/prisma/client";
 import { createTestContext, type TestContext } from "../harness";
+import { createMockSession, runWithSession } from "../harness/session-mock";
 import type {
   Actor,
   ActorActions,
@@ -226,6 +227,9 @@ export class Stage {
 
   /**
    * Create the actions object for an actor
+   *
+   * All actions are wrapped in runWithSession() to inject the session into
+   * AsyncLocalStorage for tmid middleware to access via getSession().
    */
   private createActorActions(
     player: LivePlayer,
@@ -233,6 +237,13 @@ export class Stage {
     session: Session,
   ): ActorActions {
     const stage = this;
+
+    // Create the mock session for tmid middleware
+    const mockSession = createMockSession(session, {
+      id: player.user.id,
+      email: player.user.email,
+      isAdmin: player.user.isAdmin,
+    });
 
     const createCaller = () => {
       const trpcCtx = createTestTRPCContext({
@@ -250,40 +261,54 @@ export class Stage {
 
     return {
       async createTodo(input) {
-        const caller = createCaller();
-        const result = await caller.todo.create(input);
-        stage.ctx.todoIds.add(result.id);
-        return result;
+        return runWithSession(mockSession, async () => {
+          const caller = createCaller();
+          const result = await caller.todo.create(input);
+          stage.ctx.todoIds.add(result.id);
+          return result;
+        });
       },
 
       async getTodo(input) {
-        const caller = createCaller();
-        return caller.todo.get(input);
+        return runWithSession(mockSession, async () => {
+          const caller = createCaller();
+          return caller.todo.get(input);
+        });
       },
 
       async listTodos(input = {}) {
-        const caller = createCaller();
-        return caller.todo.list(input);
+        return runWithSession(mockSession, async () => {
+          const caller = createCaller();
+          return caller.todo.list(input);
+        });
       },
 
       async updateTodo(input) {
-        const caller = createCaller();
-        return caller.todo.update(input);
+        return runWithSession(mockSession, async () => {
+          const caller = createCaller();
+          return caller.todo.update(input);
+        });
       },
 
       async deleteTodo(input) {
-        const caller = createCaller();
-        return caller.todo.delete(input);
+        return runWithSession(mockSession, async () => {
+          const caller = createCaller();
+          return caller.todo.delete(input);
+        });
       },
 
       async toggleTodo(input) {
-        const caller = createCaller();
-        return caller.todo.toggleComplete(input);
+        return runWithSession(mockSession, async () => {
+          const caller = createCaller();
+          return caller.todo.toggleComplete(input);
+        });
       },
 
       async getTodoStats() {
-        const caller = createCaller();
-        return caller.todo.stats();
+        return runWithSession(mockSession, async () => {
+          const caller = createCaller();
+          return caller.todo.stats();
+        });
       },
     };
   }
