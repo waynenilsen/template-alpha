@@ -35,5 +35,15 @@ coveragePathIgnorePatterns = [
   "lib/subscriptions/stripe-billing.ts",
   # Subscription router - Stripe-dependent mutations cannot be tested without credentials
   # Testable procedures (getPlans, getCurrent, getUsage) are thoroughly tested
-  "trpc/routers/subscription.ts"
+  "trpc/routers/subscription.ts",
+  # UI components are client-side only and tested via Storybook
+  # SSR tests verify rendering, but event handlers require browser environment
+  "components/ui/**",
+  # Client-side form components - event handlers require browser environment
+  # Tested via Storybook interactions and e2e tests
+  "components/change-password-form.tsx",
+  "components/delete-account-dialog.tsx",
+  "components/user-settings-form.tsx",
+  # App pages are integration code tested via e2e tests
+  "app/**"
 ]

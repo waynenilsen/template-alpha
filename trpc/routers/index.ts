@@ -3,3 +3,4 @@ export { authRouter } from "./auth";
 export { organizationRouter } from "./organization";
 export { subscriptionRouter } from "./subscription";
 export { todoRouter } from "./todo";
+export { userRouter } from "./user";
