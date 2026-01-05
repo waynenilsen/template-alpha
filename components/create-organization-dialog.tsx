@@ -19,16 +19,31 @@ import { Label } from "@/components/ui/label";
 import { useTRPC } from "@/trpc/client";
 
 interface CreateOrganizationDialogProps {
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function CreateOrganizationDialog({
   trigger,
+  open: controlledOpen,
+  onOpenChange,
 }: CreateOrganizationDialogProps) {
   const router = useRouter();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (value: boolean) => {
+    if (isControlled) {
+      onOpenChange?.(value);
+    } else {
+      setInternalOpen(value);
+    }
+  };
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +74,7 @@ export function CreateOrganizationDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
