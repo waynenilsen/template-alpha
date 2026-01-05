@@ -1,10 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Plus, Trash2, X } from "lucide-react";
+import { Check, Circle, Loader2, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -70,208 +69,197 @@ export function TodoList({ userRole }: TodoListProps) {
   const stats = statsQuery.data;
 
   return (
-    <div className="space-y-6">
-      {/* Stats */}
-      {stats && (
-        <div
-          className="grid grid-cols-2 gap-4 sm:grid-cols-4"
-          data-testid="todo-stats"
-        >
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div
-                className="text-2xl font-bold"
-                data-testid="todo-stats-total"
-              >
-                {stats.total}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Completed
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div
-                className="text-2xl font-bold text-green-600"
-                data-testid="todo-stats-completed"
-              >
+    <div className="max-w-2xl mx-auto">
+      {/* Header with inline stats */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold tracking-tight mb-1">Tasks</h2>
+        {stats && (
+          <div
+            className="flex items-center gap-4 text-sm text-muted-foreground"
+            data-testid="todo-stats"
+          >
+            <span data-testid="todo-stats-total">
+              <span className="font-medium text-foreground">{stats.total}</span>{" "}
+              total
+            </span>
+            <span className="text-border">•</span>
+            <span data-testid="todo-stats-completed">
+              <span className="font-medium text-green-600">
                 {stats.completed}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pending
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div
-                className="text-2xl font-bold text-amber-600"
-                data-testid="todo-stats-pending"
-              >
+              </span>{" "}
+              done
+            </span>
+            <span className="text-border">•</span>
+            <span data-testid="todo-stats-pending">
+              <span className="font-medium text-amber-600">
                 {stats.pending}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Progress
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div
-                className="text-2xl font-bold"
-                data-testid="todo-stats-progress"
-              >
-                {stats.completionRate}%
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+              </span>{" "}
+              pending
+            </span>
+            {stats.total > 0 && (
+              <>
+                <span className="text-border">•</span>
+                <span data-testid="todo-stats-progress">
+                  <span className="font-medium text-foreground">
+                    {stats.completionRate}%
+                  </span>{" "}
+                  complete
+                </span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
-      {/* Create todo form */}
-      <Card data-testid="todo-create-card">
-        <CardContent className="pt-6">
-          {isCreating ? (
-            <form
-              onSubmit={handleCreateTodo}
-              className="flex gap-2"
-              data-testid="todo-create-form"
-            >
+      {/* Create todo input */}
+      <div className="mb-6" data-testid="todo-create-card">
+        {isCreating ? (
+          <form
+            onSubmit={handleCreateTodo}
+            className="flex items-center gap-2"
+            data-testid="todo-create-form"
+          >
+            <div className="flex-1 relative">
+              <Circle className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
               <Input
                 placeholder="What needs to be done?"
                 value={newTodoTitle}
                 onChange={(e) => setNewTodoTitle(e.target.value)}
                 disabled={createMutation.isPending}
                 autoFocus
+                className="pl-10 h-11 bg-transparent border-muted-foreground/20 focus-visible:border-primary"
                 data-testid="todo-create-input"
               />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={createMutation.isPending || !newTodoTitle.trim()}
-                data-testid="todo-create-submit"
-              >
-                {createMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="outline"
-                onClick={() => {
-                  setIsCreating(false);
-                  setNewTodoTitle("");
-                }}
-                disabled={createMutation.isPending}
-                data-testid="todo-create-cancel"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </form>
-          ) : (
+            </div>
             <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-              onClick={() => setIsCreating(true)}
-              data-testid="todo-add-button"
+              type="submit"
+              size="sm"
+              disabled={createMutation.isPending || !newTodoTitle.trim()}
+              className="h-11 px-4"
+              data-testid="todo-create-submit"
             >
-              <Plus className="h-4 w-4" />
-              Add a todo
+              {createMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-1.5" />
+                  Add
+                </>
+              )}
             </Button>
-          )}
-        </CardContent>
-      </Card>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setIsCreating(false);
+                setNewTodoTitle("");
+              }}
+              disabled={createMutation.isPending}
+              className="h-11 px-3"
+              data-testid="todo-create-cancel"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsCreating(true)}
+            className="w-full flex items-center gap-3 px-3 py-3 text-muted-foreground hover:text-foreground rounded-lg border border-dashed border-muted-foreground/25 hover:border-muted-foreground/40 transition-colors"
+            data-testid="todo-add-button"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="text-sm">Add a task...</span>
+          </button>
+        )}
+      </div>
 
       {/* Todo list */}
-      <Card data-testid="todo-list-card">
-        <CardHeader>
-          <CardTitle>Todos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {todosQuery.isLoading ? (
-            <div
-              className="flex items-center justify-center py-8"
-              data-testid="todo-list-loading"
-            >
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : todos.length === 0 ? (
-            <div
-              className="py-8 text-center text-muted-foreground"
-              data-testid="todo-list-empty"
-            >
-              No todos yet. Create one to get started!
-            </div>
-          ) : (
-            <div className="space-y-2" data-testid="todo-list">
-              {todos.map((todo) => (
-                <div
-                  key={todo.id}
-                  className="flex items-center gap-3 rounded-lg border p-3"
-                  data-testid={`todo-item-${todo.id}`}
-                  data-todo-id={todo.id}
-                  data-todo-completed={todo.completed}
-                >
-                  <Checkbox
-                    checked={todo.completed}
-                    onCheckedChange={() =>
-                      toggleMutation.mutate({ id: todo.id })
-                    }
-                    disabled={toggleMutation.isPending}
-                    data-testid={`todo-checkbox-${todo.id}`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={cn(
-                        "text-sm font-medium truncate",
-                        todo.completed && "text-muted-foreground line-through",
-                      )}
-                      data-testid={`todo-title-${todo.id}`}
-                    >
-                      {todo.title}
-                    </p>
-                    {todo.description && (
-                      <p
-                        className="text-xs text-muted-foreground truncate"
-                        data-testid={`todo-description-${todo.id}`}
-                      >
-                        {todo.description}
-                      </p>
+      <div data-testid="todo-list-card">
+        {todosQuery.isLoading ? (
+          <div
+            className="flex items-center justify-center py-12"
+            data-testid="todo-list-loading"
+          >
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : todos.length === 0 ? (
+          <div className="py-12 text-center" data-testid="todo-list-empty">
+            <p className="text-muted-foreground">No tasks yet</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">
+              Add your first task to get started
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/50" data-testid="todo-list">
+            {todos.map((todo) => (
+              <div
+                key={todo.id}
+                className="group flex items-center gap-3 py-3 px-1 -mx-1 rounded-lg hover:bg-muted/50 transition-colors"
+                data-testid={`todo-item-${todo.id}`}
+                data-todo-id={todo.id}
+                data-todo-completed={todo.completed}
+              >
+                <Checkbox
+                  checked={todo.completed}
+                  onCheckedChange={() => toggleMutation.mutate({ id: todo.id })}
+                  disabled={toggleMutation.isPending}
+                  className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                  data-testid={`todo-checkbox-${todo.id}`}
+                />
+                <div className="flex-1 min-w-0">
+                  <p
+                    className={cn(
+                      "text-sm transition-colors",
+                      todo.completed && "text-muted-foreground line-through",
                     )}
-                  </div>
-                  {canDelete && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteMutation.mutate({ id: todo.id })}
-                      disabled={deleteMutation.isPending}
-                      data-testid={`todo-delete-${todo.id}`}
+                    data-testid={`todo-title-${todo.id}`}
+                  >
+                    {todo.title}
+                  </p>
+                  {todo.description && (
+                    <p
+                      className="text-xs text-muted-foreground/70 truncate mt-0.5"
+                      data-testid={`todo-description-${todo.id}`}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      {todo.description}
+                    </p>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                {canDelete && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                    onClick={() => deleteMutation.mutate({ id: todo.id })}
+                    disabled={deleteMutation.isPending}
+                    data-testid={`todo-delete-${todo.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Progress indicator */}
+      {stats && stats.total > 0 && (
+        <div className="mt-8 pt-6 border-t border-border/50">
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+            <span>Progress</span>
+            <span>{stats.completionRate}%</span>
+          </div>
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-600 rounded-full transition-all duration-300"
+              style={{ width: `${stats.completionRate}%` }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
