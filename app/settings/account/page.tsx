@@ -1,12 +1,20 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { KeyRound, Trash2, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { UserSettingsForm } from "@/components/user-settings-form";
 import { useTRPC } from "@/trpc/client";
 
@@ -94,10 +102,12 @@ export default function AccountSettingsPage() {
 
   if (profileQuery.isLoading) {
     return (
-      <div className="container max-w-2xl py-8">
+      <div className="container mx-auto max-w-4xl px-4 py-8">
+        <Skeleton className="mb-2 h-9 w-48" />
+        <Skeleton className="mb-8 h-5 w-64" />
         <div className="space-y-6">
-          <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-          <div className="h-64 animate-pulse rounded-lg bg-muted" />
+          <Skeleton className="h-48" />
+          <Skeleton className="h-64" />
         </div>
       </div>
     );
@@ -105,10 +115,14 @@ export default function AccountSettingsPage() {
 
   if (profileQuery.isError) {
     return (
-      <div className="container max-w-2xl py-8">
-        <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">
-          Failed to load profile: {profileQuery.error.message}
-        </div>
+      <div className="container mx-auto max-w-4xl px-4 py-8">
+        <Card>
+          <CardContent className="py-12">
+            <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">
+              Failed to load profile: {profileQuery.error.message}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -116,57 +130,91 @@ export default function AccountSettingsPage() {
   const profile = profileQuery.data;
 
   return (
-    <div className="container max-w-2xl py-8">
+    <div className="container mx-auto max-w-4xl px-4 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Account Settings</h1>
+        <p className="text-muted-foreground">
+          Manage your account settings and preferences
+        </p>
+      </div>
+
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Account Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your account settings and preferences
-          </p>
-        </div>
+        {/* Profile Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Profile
+            </CardTitle>
+            <CardDescription>Update your personal information</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UserSettingsForm
+              initialName={profile?.name ?? ""}
+              email={profile?.email ?? ""}
+              onSubmit={handleProfileSubmit}
+              isLoading={updateProfileMutation.isPending}
+              error={profileError}
+              success={profileSuccess}
+            />
+          </CardContent>
+        </Card>
 
-        <UserSettingsForm
-          initialName={profile?.name ?? ""}
-          email={profile?.email ?? ""}
-          onSubmit={handleProfileSubmit}
-          isLoading={updateProfileMutation.isPending}
-          error={profileError}
-          success={profileSuccess}
-        />
+        {/* Password Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5" />
+              Password
+            </CardTitle>
+            <CardDescription>Change your account password</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChangePasswordForm
+              onSubmit={handlePasswordSubmit}
+              isLoading={changePasswordMutation.isPending}
+              error={passwordError}
+              success={passwordSuccess}
+            />
+          </CardContent>
+        </Card>
 
-        <Separator />
-
-        <ChangePasswordForm
-          onSubmit={handlePasswordSubmit}
-          isLoading={changePasswordMutation.isPending}
-          error={passwordError}
-          success={passwordSuccess}
-        />
-
-        <Separator />
-
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold text-destructive">
-              Danger Zone
-            </h2>
-            <p className="text-sm text-muted-foreground">
+        {/* Danger Zone */}
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-destructive">Danger Zone</CardTitle>
+            <CardDescription>
               Irreversible and destructive actions
-            </p>
-          </div>
-          <DeleteAccountDialog
-            trigger={
-              <Button variant="destructive" data-testid="delete-account-button">
-                Delete Account
-              </Button>
-            }
-            onConfirm={handleDeleteConfirm}
-            isLoading={deleteAccountMutation.isPending}
-            error={deleteError}
-            open={deleteDialogOpen}
-            onOpenChange={setDeleteDialogOpen}
-          />
-        </div>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Delete Account</p>
+                <p className="text-sm text-muted-foreground">
+                  Permanently delete your account and all associated data
+                </p>
+              </div>
+              <DeleteAccountDialog
+                trigger={
+                  <Button
+                    variant="destructive"
+                    data-testid="delete-account-button"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                }
+                onConfirm={handleDeleteConfirm}
+                isLoading={deleteAccountMutation.isPending}
+                error={deleteError}
+                open={deleteDialogOpen}
+                onOpenChange={setDeleteDialogOpen}
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
