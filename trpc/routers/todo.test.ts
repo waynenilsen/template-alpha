@@ -149,13 +149,23 @@ describe("todo router", () => {
         });
         const caller = appRouter.createCaller(trpcCtx);
 
+        const mockSession = createMockSession(session, {
+          id: user.id,
+          email: user.email,
+          isAdmin: user.isAdmin,
+        });
+
         // Create 2 todos (at limit)
-        await caller.todo.create({ title: "Todo 1" });
-        await caller.todo.create({ title: "Todo 2" });
+        await runWithSession(mockSession, async () => {
+          await caller.todo.create({ title: "Todo 1" });
+          await caller.todo.create({ title: "Todo 2" });
+        });
 
         // Third should fail
         try {
-          await caller.todo.create({ title: "Todo 3" });
+          await runWithSession(mockSession, async () => {
+            await caller.todo.create({ title: "Todo 3" });
+          });
           expect(true).toBe(false); // Should not reach here
         } catch (error) {
           expect(error).toBeInstanceOf(TRPCError);

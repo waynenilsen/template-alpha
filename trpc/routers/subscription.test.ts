@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { Plan } from "../../lib/generated/prisma/client";
-import { createTestContext, type TestContext } from "../../lib/test/harness";
+import {
+  createMockSession,
+  createTestContext,
+  runWithSession,
+  type TestContext,
+} from "../../lib/test/harness";
 import { createTestTRPCContext } from "../init";
 import { appRouter } from "../router";
 
@@ -101,7 +106,15 @@ describe("subscription router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const subscription = await caller.subscription.getCurrent();
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
+      const subscription = await runWithSession(mockSession, async () => {
+        return caller.subscription.getCurrent();
+      });
 
       expect(subscription.plan.slug).toBe("free");
       expect(subscription.status).toBe("active");
@@ -121,7 +134,15 @@ describe("subscription router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const subscription = await caller.subscription.getCurrent();
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
+      const subscription = await runWithSession(mockSession, async () => {
+        return caller.subscription.getCurrent();
+      });
 
       expect(subscription.plan.slug).toBe("free");
       expect(subscription.status).toBe("active");
@@ -139,9 +160,17 @@ describe("subscription router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      await expect(caller.subscription.getCurrent()).rejects.toThrow(
-        "You must select an organization",
-      );
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
+      await expect(
+        runWithSession(mockSession, async () => {
+          return caller.subscription.getCurrent();
+        }),
+      ).rejects.toThrow("You must select an organization");
     });
   });
 
@@ -171,7 +200,15 @@ describe("subscription router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
-      const usage = await caller.subscription.getUsage();
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
+      const usage = await runWithSession(mockSession, async () => {
+        return caller.subscription.getUsage();
+      });
 
       expect(usage.todos.current).toBe(5);
       expect(usage.todos.limit).toBe(10);
@@ -198,12 +235,20 @@ describe("subscription router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       await expect(
-        caller.subscription.createCheckout({
-          planSlug: "pro",
-          interval: "monthly",
-          successUrl: "https://example.com/success",
-          cancelUrl: "https://example.com/cancel",
+        runWithSession(mockSession, async () => {
+          return caller.subscription.createCheckout({
+            planSlug: "pro",
+            interval: "monthly",
+            successUrl: "https://example.com/success",
+            cancelUrl: "https://example.com/cancel",
+          });
         }),
       ).rejects.toThrow("Stripe is not configured");
     });
@@ -228,9 +273,17 @@ describe("subscription router", () => {
       });
       const caller = appRouter.createCaller(trpcCtx);
 
+      const mockSession = createMockSession(session, {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      });
+
       await expect(
-        caller.subscription.createBillingPortal({
-          returnUrl: "https://example.com/settings",
+        runWithSession(mockSession, async () => {
+          return caller.subscription.createBillingPortal({
+            returnUrl: "https://example.com/settings",
+          });
         }),
       ).rejects.toThrow("Stripe is not configured");
     });
