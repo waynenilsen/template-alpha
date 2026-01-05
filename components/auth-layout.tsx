@@ -1,4 +1,5 @@
 import { CheckCircle2 } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface AuthLayoutProps {
@@ -26,12 +27,12 @@ export function AuthLayout({
       {/* Logo area */}
       {showLogo && (
         <div className="pt-8 pb-4 flex justify-center">
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <CheckCircle2 className="h-8 w-8 text-zinc-900 dark:text-zinc-100" />
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
               Multi-Tenant Todo
             </h1>
-          </div>
+          </Link>
         </div>
       )}
 
