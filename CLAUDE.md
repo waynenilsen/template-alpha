@@ -23,6 +23,8 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 
 **See [CODEBASE.md](./CODEBASE.md) for detailed directory structure and architecture.**
 
+**See [SECURITY.md](./SECURITY.md) for authentication system documentation and AI agent guidelines.**
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router) + React 19 (dev server on port 58665)
