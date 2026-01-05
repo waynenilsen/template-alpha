@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { prisma } from "../db";
 import { sendPasswordResetEmail, sendWelcomeEmail } from "../email";
 import { getUserOrganizations } from "./authorization";
+import { normalizeEmail } from "./email";
 import { hashPassword, passwordSchema, verifyPassword } from "./password";
 import {
   requestPasswordReset as requestReset,
@@ -54,7 +55,9 @@ export async function signUp(data: {
     };
   }
 
-  const { email, password } = parsed.data;
+  const { password } = parsed.data;
+  // Normalize email to lowercase for case-insensitive handling
+  const email = normalizeEmail(parsed.data.email);
 
   // Check if email is already taken
   const existingUser = await prisma.user.findUnique({
@@ -144,7 +147,9 @@ export async function signIn(data: {
     };
   }
 
-  const { email, password } = parsed.data;
+  const { password } = parsed.data;
+  // Normalize email to lowercase for case-insensitive handling
+  const email = normalizeEmail(parsed.data.email);
 
   // Find user by email
   const user = await prisma.user.findUnique({

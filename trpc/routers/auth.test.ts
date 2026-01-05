@@ -112,6 +112,49 @@ describe("auth router", () => {
         expect((error as TRPCError).code).toBe("BAD_REQUEST");
       }
     });
+
+    test("normalizes email to lowercase", async () => {
+      const email = `${ctx.prefix}UpperCase@Example.COM`;
+      const password = "ValidPass123";
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      const result = await caller.auth.signUp({ email, password });
+
+      // Email should be stored as lowercase
+      expect(result.user.email).toBe(email.toLowerCase());
+
+      ctx.userIds.add(result.user.id);
+      ctx.sessionIds.add(result.session.id);
+      ctx.organizationIds.add(result.organization.id);
+    });
+
+    test("rejects duplicate email with different case", async () => {
+      const email = `${ctx.prefix}case-test@example.com`;
+      const password = "ValidPass123";
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      // Create first user with lowercase email
+      const result = await caller.auth.signUp({ email, password });
+      ctx.userIds.add(result.user.id);
+      ctx.sessionIds.add(result.session.id);
+      ctx.organizationIds.add(result.organization.id);
+
+      // Try to create duplicate with uppercase
+      try {
+        await caller.auth.signUp({
+          email: email.toUpperCase(),
+          password,
+        });
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("CONFLICT");
+      }
+    });
   });
 
   describe("signIn", () => {
@@ -190,6 +233,25 @@ describe("auth router", () => {
         expect(error).toBeInstanceOf(TRPCError);
         expect((error as TRPCError).code).toBe("UNAUTHORIZED");
       }
+    });
+
+    test("allows sign in with different email case", async () => {
+      const { user, password } = await createTestUserWithPassword(ctx);
+
+      const trpcCtx = createTestTRPCContext({ prisma: ctx.prisma });
+      const caller = appRouter.createCaller(trpcCtx);
+
+      // Sign in with uppercase email
+      const result = await caller.auth.signIn({
+        email: user.email.toUpperCase(),
+        password,
+      });
+
+      expect(result.user.id).toBe(user.id);
+      expect(result.user.email).toBe(user.email);
+      expect(result.session.id).toBeDefined();
+
+      ctx.sessionIds.add(result.session.id);
     });
   });
 

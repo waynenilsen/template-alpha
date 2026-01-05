@@ -3,6 +3,7 @@ import type {
   PasswordResetToken,
   PrismaClient,
 } from "../generated/prisma/client";
+import { normalizeEmail } from "./email";
 import { hashPassword } from "./password";
 
 // Transaction-compatible Prisma client type (for use in $transaction callbacks)
@@ -99,7 +100,7 @@ export async function requestPasswordReset(
   email: string,
 ): Promise<RequestPasswordResetResult> {
   const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
+    where: { email: normalizeEmail(email) },
     select: { id: true },
   });
 
