@@ -55,6 +55,7 @@ bun db:start       # Start PostgreSQL (auto-detects Docker vs local)
 bun mail:start     # Start mail server (auto-detects Docker vs local)
 bun stripe:mock    # Start Stripe mock server (auto-detects Docker vs local)
 bun stripe:sync    # Sync subscription plans to Stripe and database
+bun s3:start       # Start MinIO S3 storage (auto-detects Docker vs local)
 ```
 
 ## Testing
@@ -262,6 +263,37 @@ STRIPE_MOCK_URL="http://localhost:59310"
 ```
 
 **Note:** stripe-mock requires a valid-looking test key format (e.g., `sk_test_...`).
+
+## S3 Storage (MinIO)
+
+```bash
+bun s3:start  # Start MinIO S3-compatible storage
+```
+
+The `s3:start` script handles MinIO setup automatically:
+
+| Environment | Behavior |
+|-------------|----------|
+| **Docker available** | Runs `docker compose up -d minio` with bucket initialization |
+| **No Docker** (Claude Code Web) | Downloads MinIO binary, runs locally, creates buckets |
+| **CI** (GitHub Actions) | Skips entirely—S3 is mocked in tests |
+
+MinIO provides S3-compatible storage for development:
+- **S3 API endpoint**: `http://localhost:52871`
+- **Console UI**: `http://localhost:52872`
+
+Buckets (created automatically):
+- `template-alpha-public` - For avatars and public assets
+- `template-alpha-private` - For attachments and private files
+
+Environment variables:
+```
+S3_ENDPOINT="http://localhost:52871"
+S3_ACCESS_KEY="minioadmin"
+S3_SECRET_KEY="minioadmin"
+S3_BUCKET_PUBLIC="template-alpha-public"
+S3_BUCKET_PRIVATE="template-alpha-private"
+```
 
 ## Testing
 
