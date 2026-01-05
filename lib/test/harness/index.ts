@@ -19,6 +19,13 @@ export { createTestUserWithPassword } from "./helpers";
 
 // Prisma utilities
 export { disconnectTestPrisma, getTestPrisma } from "./prisma";
+export type { SessionData } from "./session-mock";
+// Session mocking for tmid middleware tests (parallel-safe using AsyncLocalStorage)
+export {
+  createMockSession,
+  createMockSessionFromUserWithOrg,
+  runWithSession,
+} from "./session-mock";
 
 // Types
 export type {
