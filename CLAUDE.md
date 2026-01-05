@@ -53,6 +53,8 @@ bun lint:fix       # Fix lint issues (imports, rules)
 bun format         # Format with Biome
 bun db:start       # Start PostgreSQL (auto-detects Docker vs local)
 bun mail:start     # Start mail server (auto-detects Docker vs local)
+bun stripe:mock    # Start Stripe mock server (auto-detects Docker vs local)
+bun stripe:sync    # Sync subscription plans to Stripe and database
 ```
 
 ## Testing
@@ -229,6 +231,37 @@ The `mail:start` script handles mail server setup automatically:
 MailHog provides:
 - **SMTP server**: `localhost:50239`
 - **Web UI**: `http://localhost:58443` (view captured emails)
+
+## Stripe Mock
+
+```bash
+bun stripe:mock  # Start Stripe mock server for development
+```
+
+The `stripe:mock` script handles stripe-mock setup automatically:
+
+| Environment | Behavior |
+|-------------|----------|
+| **Docker available** | Runs `docker compose up -d stripe-mock` |
+| **No Docker** (Claude Code Web) | Downloads stripe-mock binary from GitHub releases, runs locally |
+| **CI** (GitHub Actions) | Skips entirely—Stripe is mocked in tests |
+
+stripe-mock provides a local Stripe API for development:
+- **API endpoint**: `http://localhost:59310`
+
+To sync plans with stripe-mock:
+```bash
+bun stripe:mock   # Start stripe-mock first
+bun stripe:sync   # Sync plans to stripe-mock and database
+```
+
+Environment variables (already set in `.env.local`):
+```
+STRIPE_SECRET_KEY="sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+STRIPE_MOCK_URL="http://localhost:59310"
+```
+
+**Note:** stripe-mock requires a valid-looking test key format (e.g., `sk_test_...`).
 
 ## Testing
 

@@ -22,6 +22,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
+    "stripe:mock": "./scripts/setup-stripe-mock.sh",
     "stripe:sync": "bun run scripts/stripe-sync.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
