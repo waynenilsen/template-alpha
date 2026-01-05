@@ -21,6 +21,7 @@ import type { PlanLimit } from "../../subscriptions/plans";
 export interface CreateUserOptions {
   email?: string;
   password?: string;
+  name?: string;
   isAdmin?: boolean;
 }
 

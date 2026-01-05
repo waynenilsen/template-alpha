@@ -6,6 +6,7 @@ import {
   organizationRouter,
   subscriptionRouter,
   todoRouter,
+  userRouter,
 } from "./routers";
 
 /**
@@ -85,6 +86,11 @@ export const appRouter = createTRPCRouter({
    * Subscription router - billing and plan management
    */
   subscription: subscriptionRouter,
+
+  /**
+   * User router - user profile and settings
+   */
+  user: userRouter,
 });
 
 // Export type definition of the API for client usage

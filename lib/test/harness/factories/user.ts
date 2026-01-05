@@ -22,6 +22,7 @@ export function createUserFactory(
       data: {
         email,
         passwordHash,
+        name: options.name,
         isAdmin: options.isAdmin ?? false,
       },
     });
