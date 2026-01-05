@@ -2,8 +2,6 @@
 
 A scaffold template for building multi-tenant SaaS applications. Uses a simple Todo app as the kata for demonstrating the architecture patterns.
 
-> **⚠️ Work in Progress** - This is an evolving template. See the implementation status below.
-
 ## Tech Stack
 
 | Technology | Status | Notes |
@@ -12,34 +10,34 @@ A scaffold template for building multi-tenant SaaS applications. Uses a simple T
 | Tailwind CSS 4 | ✅ Done | With CSS variables |
 | shadcn/ui | ✅ Done | New York style, all components |
 | Biome | ✅ Done | Linting + formatting |
-| PostgreSQL | ✅ Done | Docker Compose for local dev |
+| PostgreSQL | ✅ Done | Docker Compose or local install |
 | TypeScript | ✅ Done | Strict mode |
-| Prisma | ❌ TODO | ORM + migrations |
-| tRPC | ❌ TODO | Type-safe API layer |
-| Auth | ❌ TODO | Home-rolled session auth |
-| Multi-tenancy | ❌ TODO | Org-based data isolation |
+| Prisma 7 | ✅ Done | ORM + migrations |
+| tRPC v11 | ✅ Done | Type-safe API with TanStack Query |
+| Auth | ✅ Done | Session-based with RBAC |
+| Multi-tenancy | ✅ Done | Org-based data isolation |
 
 ## Getting Started
 
 ### Prerequisites
 
 - [Bun](https://bun.sh/) (package manager)
-- [Docker](https://www.docker.com/) (for PostgreSQL)
+- [Docker](https://www.docker.com/) (optional - for PostgreSQL)
 
 ### Setup
 
 ```bash
-# Start the database
-docker compose up -d
-
 # Install dependencies
 bun install
+
+# Start the database (works with or without Docker)
+bun db:start
 
 # Run development server
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the app.
+Open [http://localhost:58665](http://localhost:58665) to see the app.
 
 ### Database
 
@@ -57,48 +55,69 @@ Database: template_alpha
 
 ```
 ├── app/                  # Next.js App Router pages
+│   ├── (auth)/          # Auth pages (sign-in, sign-up, forgot-password, reset-password)
+│   ├── settings/        # Settings pages (organization management)
+│   ├── invite/          # Invitation acceptance flow
+│   └── api/trpc/        # tRPC API route
 ├── components/
 │   └── ui/              # shadcn/ui components
 ├── hooks/               # React hooks
-├── lib/                 # Utilities
-├── docker-compose.yml   # PostgreSQL container
-├── biome.json          # Linting/formatting config
-└── components.json     # shadcn/ui config
+├── lib/
+│   ├── auth/            # Authentication logic (sessions, passwords, RBAC)
+│   ├── email/           # Email sending utilities
+│   └── test/            # Test harness and factories
+├── trpc/
+│   └── routers/         # tRPC routers (auth, organization, todo)
+├── prisma/              # Database schema (split by domain)
+├── docker-compose.yml   # PostgreSQL + MailHog containers
+├── biome.json           # Linting/formatting config
+└── components.json      # shadcn/ui config
 ```
 
 ## Scripts
 
 ```bash
-bun dev       # Start dev server
-bun build     # Production build
-bun start     # Start production server
-bun lint      # Run Biome linter
-bun format    # Format code with Biome
+bun dev            # Start dev server (port 58665)
+bun build          # Production build
+bun start          # Start production server
+bun test           # Run unit tests
+bun test:coverage  # Run tests with coverage report
+bun typecheck      # TypeScript type checking
+bun lint           # Run Biome linter
+bun lint:fix       # Fix lint issues
+bun format         # Format code with Biome
+bun db:start       # Start PostgreSQL (auto-detects Docker vs local)
+bun mail:start     # Start mail server for development
 ```
 
-## Roadmap
+## Features
 
-### Phase 1: Data Layer
-- [ ] Add Prisma with schema for Users, Orgs, Todos
-- [ ] Set up migrations workflow
-- [ ] Seed script for development
+### Authentication
+- Session-based authentication (no third-party dependencies)
+- Sign in / Sign up pages with form validation
+- Password reset flow with email verification
+- Password strength indicator
 
-### Phase 2: API Layer
-- [ ] Add tRPC router
-- [ ] CRUD procedures for Todos
-- [ ] Input validation with Zod
+### Multi-tenancy
+- Organization-based data isolation
+- Role-based access control (owner / admin / member)
+- Team member invitations via email
+- Organization switching
+- Transfer ownership
 
-### Phase 3: Authentication
-- [ ] Session-based auth (no third-party deps)
-- [ ] Login/register pages
-- [ ] Auth middleware
+### Todo Application (Demo)
+- Full CRUD operations
+- Completion toggling
+- Stats dashboard (total, completed, pending, progress)
+- Role-based delete permissions (admin+ only)
 
-### Phase 4: Multi-tenancy
-- [ ] Organization model
-- [ ] Invite system
-- [ ] Data isolation by org
+### API Layer
+- Type-safe tRPC v11 procedures
+- TanStack Query integration with `queryOptions` pattern
+- Zod validation for all inputs
+- Organization-scoped procedures for data isolation
 
-### Phase 5: Todo Feature
-- [ ] Todo list UI
-- [ ] Create/update/delete/complete
-- [ ] Filtering and search
+### Future Enhancements
+- [ ] Social OAuth (Google, GitHub) - UI placeholders exist
+- [ ] Email verification on signup
+- [ ] Organization settings editing
