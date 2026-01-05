@@ -4,6 +4,7 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   name         String?
+  avatarId     String?  @map("avatar_id")
   passwordHash String   @map("password_hash")
   isAdmin      Boolean  @default(false) @map("is_admin")
   createdAt    DateTime @default(now()) @map("created_at")

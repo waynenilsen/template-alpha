@@ -74,8 +74,18 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      minio:
+        image: fclairamb/minio-github-actions
+        ports:
+          - 9000:9000
+
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/template_alpha_test
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET_PUBLIC: template-alpha-public
+      S3_BUCKET_PRIVATE: template-alpha-private
 
     steps:
       - name: Checkout code
@@ -88,6 +98,14 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Setup MinIO buckets
+        run: |
+          curl -sL https://dl.min.io/client/mc/release/linux-amd64/mc -o /tmp/mc
+          chmod +x /tmp/mc
+          /tmp/mc alias set minio http://localhost:9000 minioadmin minioadmin
+          /tmp/mc mb minio/template-alpha-public --ignore-existing
+          /tmp/mc mb minio/template-alpha-private --ignore-existing
 
       - name: Push database schema
         run: bunx prisma db push
