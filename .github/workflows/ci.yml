@@ -3,8 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.prisma'
+      - 'prisma/**'
   pull_request:
     branches: [main]
+    paths:
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.prisma'
+      - 'prisma/**'
 
 jobs:
   typecheck:
