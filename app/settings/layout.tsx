@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { AppShell } from "@/components/app-shell";
 import { caller } from "@/trpc/server";
 
 export default async function SettingsLayout({
@@ -17,5 +18,5 @@ export default async function SettingsLayout({
     redirect("/sign-in");
   }
 
-  return <>{children}</>;
+  return <AppShell>{children}</AppShell>;
 }

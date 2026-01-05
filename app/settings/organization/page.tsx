@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   Building2,
   Crown,
   Loader2,
@@ -237,13 +236,12 @@ export default function OrganizationSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-        <div className="container mx-auto max-w-4xl px-4 py-8">
-          <Skeleton className="mb-8 h-8 w-48" />
-          <div className="space-y-6">
-            <Skeleton className="h-48" />
-            <Skeleton className="h-64" />
-          </div>
+      <div className="container mx-auto max-w-4xl px-4 py-8">
+        <Skeleton className="mb-2 h-9 w-64" />
+        <Skeleton className="mb-8 h-5 w-48" />
+        <div className="space-y-6">
+          <Skeleton className="h-48" />
+          <Skeleton className="h-64" />
         </div>
       </div>
     );
@@ -251,280 +249,266 @@ export default function OrganizationSettingsPage() {
 
   if (!org) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-        <div className="container mx-auto max-w-4xl px-4 py-8">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Building2 className="mb-4 h-12 w-12 text-muted-foreground" />
-              <p className="text-muted-foreground">Organization not found</p>
-              <Button asChild className="mt-4">
-                <Link href="/">Go to Dashboard</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="container mx-auto max-w-4xl px-4 py-8">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Building2 className="mb-4 h-12 w-12 text-muted-foreground" />
+            <p className="text-muted-foreground">Organization not found</p>
+            <Button asChild className="mt-4">
+              <Link href="/">Go to Dashboard</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <div className="container mx-auto max-w-4xl px-4 py-8">
-        {/* Header */}
-        <div className="mb-8 flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Organization Settings</h1>
-            <p className="text-muted-foreground">{org.name}</p>
-          </div>
-        </div>
+    <div className="container mx-auto max-w-4xl px-4 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Organization Settings</h1>
+        <p className="text-muted-foreground">{org.name}</p>
+      </div>
 
-        <div className="space-y-6">
-          {/* Organization Details */}
+      <div className="space-y-6">
+        {/* Organization Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Organization Details
+            </CardTitle>
+            <CardDescription>
+              View information about your organization
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label className="text-muted-foreground">Name</Label>
+                <p className="font-medium">{org.name}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Slug</Label>
+                <p className="font-mono text-sm">{org.slug}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Members</Label>
+                <p className="font-medium">{org.memberCount}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Your Role</Label>
+                <div className="flex items-center gap-2">
+                  {getRoleIcon(org.userRole as MemberRole)}
+                  <span className="font-medium capitalize">{org.userRole}</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Team Members */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Team Members</CardTitle>
+                <CardDescription>
+                  Manage your organization's team members
+                </CardDescription>
+              </div>
+              {isAdmin && (
+                <Button onClick={() => setInviteDialogOpen(true)}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Invite Member
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y">
+              {members.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+                      {getRoleIcon(member.role as MemberRole)}
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        {member.email}
+                        {member.isCurrentUser && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            (you)
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Joined {new Date(member.joinedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={getRoleBadgeVariant(member.role as MemberRole)}
+                    >
+                      {member.role}
+                    </Badge>
+                    {isAdmin && !member.isCurrentUser && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {member.role !== "owner" && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setMemberToChangeRole({
+                                    id: member.id,
+                                    email: member.email,
+                                    currentRole: member.role as MemberRole,
+                                  })
+                                }
+                              >
+                                <Shield className="mr-2 h-4 w-4" />
+                                Change Role
+                              </DropdownMenuItem>
+                              {isOwner && (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    setMemberToTransferOwnership({
+                                      id: member.id,
+                                      email: member.email,
+                                    })
+                                  }
+                                >
+                                  <Crown className="mr-2 h-4 w-4" />
+                                  Transfer Ownership
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() =>
+                                  setMemberToRemove({
+                                    id: member.id,
+                                    email: member.email,
+                                  })
+                                }
+                              >
+                                <UserMinus className="mr-2 h-4 w-4" />
+                                Remove
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pending Invitations */}
+        {isAdmin && invitations.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Organization Details
+                <Mail className="h-5 w-5" />
+                Pending Invitations
               </CardTitle>
               <CardDescription>
-                View information about your organization
+                Invitations that haven't been accepted yet
               </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label className="text-muted-foreground">Name</Label>
-                  <p className="font-medium">{org.name}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Slug</Label>
-                  <p className="font-mono text-sm">{org.slug}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Members</Label>
-                  <p className="font-medium">{org.memberCount}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Your Role</Label>
-                  <div className="flex items-center gap-2">
-                    {getRoleIcon(org.userRole as MemberRole)}
-                    <span className="font-medium capitalize">
-                      {org.userRole}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Team Members */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Team Members</CardTitle>
-                  <CardDescription>
-                    Manage your organization's team members
-                  </CardDescription>
-                </div>
-                {isAdmin && (
-                  <Button onClick={() => setInviteDialogOpen(true)}>
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Invite Member
-                  </Button>
-                )}
-              </div>
             </CardHeader>
             <CardContent>
               <div className="divide-y">
-                {members.map((member) => (
+                {invitations.map((invitation) => (
                   <div
-                    key={member.id}
+                    key={invitation.id}
                     className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
-                        {getRoleIcon(member.role as MemberRole)}
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {member.email}
-                          {member.isCurrentUser && (
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              (you)
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Joined{" "}
-                          {new Date(member.joinedAt).toLocaleDateString()}
-                        </p>
-                      </div>
+                    <div>
+                      <p className="font-medium">{invitation.email}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Invited by {invitation.invitedBy} • Expires{" "}
+                        {new Date(invitation.expiresAt).toLocaleDateString()}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge
-                        variant={getRoleBadgeVariant(member.role as MemberRole)}
+                      <Badge variant="outline">{invitation.role}</Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          setInvitationToCancel({
+                            id: invitation.id,
+                            email: invitation.email,
+                          })
+                        }
                       >
-                        {member.role}
-                      </Badge>
-                      {isAdmin && !member.isCurrentUser && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {member.role !== "owner" && (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    setMemberToChangeRole({
-                                      id: member.id,
-                                      email: member.email,
-                                      currentRole: member.role as MemberRole,
-                                    })
-                                  }
-                                >
-                                  <Shield className="mr-2 h-4 w-4" />
-                                  Change Role
-                                </DropdownMenuItem>
-                                {isOwner && (
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      setMemberToTransferOwnership({
-                                        id: member.id,
-                                        email: member.email,
-                                      })
-                                    }
-                                  >
-                                    <Crown className="mr-2 h-4 w-4" />
-                                    Transfer Ownership
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() =>
-                                    setMemberToRemove({
-                                      id: member.id,
-                                      email: member.email,
-                                    })
-                                  }
-                                >
-                                  <UserMinus className="mr-2 h-4 w-4" />
-                                  Remove
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
+        )}
 
-          {/* Pending Invitations */}
-          {isAdmin && invitations.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5" />
-                  Pending Invitations
-                </CardTitle>
-                <CardDescription>
-                  Invitations that haven't been accepted yet
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="divide-y">
-                  {invitations.map((invitation) => (
-                    <div
-                      key={invitation.id}
-                      className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
-                    >
-                      <div>
-                        <p className="font-medium">{invitation.email}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Invited by {invitation.invitedBy} • Expires{" "}
-                          {new Date(invitation.expiresAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{invitation.role}</Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            setInvitationToCancel({
-                              id: invitation.id,
-                              email: invitation.email,
-                            })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+        {/* Danger Zone */}
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-destructive">Danger Zone</CardTitle>
+            <CardDescription>
+              Irreversible and destructive actions
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!isOwner && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Leave Organization</p>
+                  <p className="text-sm text-muted-foreground">
+                    Remove yourself from this organization
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Danger Zone */}
-          <Card className="border-destructive/50">
-            <CardHeader>
-              <CardTitle className="text-destructive">Danger Zone</CardTitle>
-              <CardDescription>
-                Irreversible and destructive actions
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!isOwner && (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Leave Organization</p>
-                    <p className="text-sm text-muted-foreground">
-                      Remove yourself from this organization
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => setLeaveDialogOpen(true)}
-                  >
-                    Leave
-                  </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setLeaveDialogOpen(true)}
+                >
+                  Leave
+                </Button>
+              </div>
+            )}
+            {isOwner && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Delete Organization</p>
+                  <p className="text-sm text-muted-foreground">
+                    Permanently delete this organization and all its data
+                  </p>
                 </div>
-              )}
-              {isOwner && (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Delete Organization</p>
-                    <p className="text-sm text-muted-foreground">
-                      Permanently delete this organization and all its data
-                    </p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    onClick={() => setDeleteDialogOpen(true)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                <Button
+                  variant="destructive"
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Invite Member Dialog */}
