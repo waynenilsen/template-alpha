@@ -6,6 +6,7 @@ parallel = true
 # We strive for 100% test coverage - current threshold prevents regression
 # Note: Some code cannot be tested:
 # - createServerSideContext requires Next.js runtime (cookies() from next/headers)
+# - getSessionFromCookies in tmid session.ts requires Next.js runtime (cookies() from next/headers)
 # - auth.switchOrg failure case requires race condition (session deleted between middleware and call)
 # - xscenario/fscenario are test utilities that use test.skip/test.only
 coverageThreshold = 0.86
@@ -20,5 +21,10 @@ coveragePathIgnorePatterns = [
   # Templates are tested separately, sending is tested via router mocks
   "lib/email/send.ts",
   # Test infrastructure - these are utilities for writing tests, not production code
-  "lib/test/scenario/**"
+  "lib/test/scenario/**",
+  # Session mocking utilities - only used by tests, not production code
+  "lib/test/harness/session-mock.ts",
+  # tmid session.ts contains getSessionFromCookies which requires Next.js runtime
+  # The testable parts (runWithSession, getSession) are covered
+  "lib/trpc/middlewares/session.ts"
 ]

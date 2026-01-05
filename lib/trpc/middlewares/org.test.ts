@@ -1,19 +1,11 @@
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  test,
-} from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
 import {
   createMockSessionFromUserWithOrg,
   createTestContext,
   disconnectTestPrisma,
-  mockSession,
+  runWithSession,
   type TestContext,
-  unmockSession,
 } from "../../test/harness";
 import { tmid } from "../tmid";
 import { auth } from "./auth";
@@ -24,10 +16,6 @@ describe("orgContext middleware", () => {
 
   beforeAll(() => {
     ctx = createTestContext();
-  });
-
-  afterEach(() => {
-    unmockSession();
   });
 
   afterAll(async () => {
@@ -41,18 +29,19 @@ describe("orgContext middleware", () => {
       userId: user.id,
       currentOrgId: organization.id,
     });
+    const mockSession = createMockSessionFromUserWithOrg(session, user);
 
-    mockSession(createMockSessionFromUserWithOrg(session, user));
-
-    const result = await tmid()
-      .use(auth())
-      .use(orgContext())
-      .build(async (context) => {
-        return {
-          organizationId: context.organizationId,
-          membershipRole: context.membership?.role,
-        };
-      });
+    const result = await runWithSession(mockSession, async () => {
+      return await tmid()
+        .use(auth())
+        .use(orgContext())
+        .build(async (context) => {
+          return {
+            organizationId: context.organizationId,
+            membershipRole: context.membership?.role,
+          };
+        });
+    });
 
     expect(result.organizationId).toBe(organization.id);
     expect(result.membershipRole).toBe(membership.role);
@@ -64,24 +53,25 @@ describe("orgContext middleware", () => {
       userId: user.id,
       // No currentOrgId
     });
+    const mockSession = createMockSessionFromUserWithOrg(session, user);
 
-    mockSession(createMockSessionFromUserWithOrg(session, user));
-
-    try {
-      await tmid()
-        .use(auth())
-        .use(orgContext())
-        .build(async () => {
-          return "should not reach";
-        });
-      expect(true).toBe(false);
-    } catch (error) {
-      expect(error).toBeInstanceOf(TRPCError);
-      expect((error as TRPCError).code).toBe("FORBIDDEN");
-      expect((error as TRPCError).message).toBe(
-        "You must select an organization to access this resource",
-      );
-    }
+    await runWithSession(mockSession, async () => {
+      try {
+        await tmid()
+          .use(auth())
+          .use(orgContext())
+          .build(async () => {
+            return "should not reach";
+          });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("FORBIDDEN");
+        expect((error as TRPCError).message).toBe(
+          "You must select an organization to access this resource",
+        );
+      }
+    });
   });
 
   test("throws FORBIDDEN when user is not a member of the organization", async () => {
@@ -92,24 +82,25 @@ describe("orgContext middleware", () => {
       userId: user.id,
       currentOrgId: organization.id,
     });
+    const mockSession = createMockSessionFromUserWithOrg(session, user);
 
-    mockSession(createMockSessionFromUserWithOrg(session, user));
-
-    try {
-      await tmid()
-        .use(auth())
-        .use(orgContext())
-        .build(async () => {
-          return "should not reach";
-        });
-      expect(true).toBe(false);
-    } catch (error) {
-      expect(error).toBeInstanceOf(TRPCError);
-      expect((error as TRPCError).code).toBe("FORBIDDEN");
-      expect((error as TRPCError).message).toBe(
-        "You are not a member of this organization",
-      );
-    }
+    await runWithSession(mockSession, async () => {
+      try {
+        await tmid()
+          .use(auth())
+          .use(orgContext())
+          .build(async () => {
+            return "should not reach";
+          });
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect((error as TRPCError).code).toBe("FORBIDDEN");
+        expect((error as TRPCError).message).toBe(
+          "You are not a member of this organization",
+        );
+      }
+    });
   });
 
   test("allows internal admin to access any organization", async () => {
@@ -120,18 +111,19 @@ describe("orgContext middleware", () => {
       userId: admin.id,
       currentOrgId: organization.id,
     });
+    const mockSession = createMockSessionFromUserWithOrg(session, admin);
 
-    mockSession(createMockSessionFromUserWithOrg(session, admin));
-
-    const result = await tmid()
-      .use(auth())
-      .use(orgContext())
-      .build(async (context) => {
-        return {
-          organizationId: context.organizationId,
-          membership: context.membership,
-        };
-      });
+    const result = await runWithSession(mockSession, async () => {
+      return await tmid()
+        .use(auth())
+        .use(orgContext())
+        .build(async (context) => {
+          return {
+            organizationId: context.organizationId,
+            membership: context.membership,
+          };
+        });
+    });
 
     expect(result.organizationId).toBe(organization.id);
     expect(result.membership).toBeNull(); // Admin has no membership but is allowed
@@ -143,19 +135,20 @@ describe("orgContext middleware", () => {
       userId: user.id,
       currentOrgId: organization.id,
     });
+    const mockSession = createMockSessionFromUserWithOrg(session, user);
 
-    mockSession(createMockSessionFromUserWithOrg(session, user));
-
-    const result = await tmid()
-      .use(auth())
-      .use(orgContext())
-      .build(async (context) => {
-        return {
-          organizationId: context.organizationId,
-          organizationName: context.membership?.organization.name,
-          organizationSlug: context.membership?.organization.slug,
-        };
-      });
+    const result = await runWithSession(mockSession, async () => {
+      return await tmid()
+        .use(auth())
+        .use(orgContext())
+        .build(async (context) => {
+          return {
+            organizationId: context.organizationId,
+            organizationName: context.membership?.organization.name,
+            organizationSlug: context.membership?.organization.slug,
+          };
+        });
+    });
 
     expect(result.organizationId).toBe(organization.id);
     expect(result.organizationName).toBe(organization.name);

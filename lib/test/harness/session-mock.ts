@@ -1,14 +1,19 @@
 /**
  * Session mocking utilities for testing tmid middlewares
+ *
+ * Uses AsyncLocalStorage for parallel-safe session mocking.
+ * Each test can run with its own session without interfering with others.
  */
 
 import type { Session, User } from "../../generated/prisma/client";
 import {
-  resetSessionProvider,
+  runWithSession,
   type SessionData,
-  type SessionProvider,
-  setSessionProvider,
 } from "../../trpc/middlewares/session";
+
+export type { SessionData } from "../../trpc/middlewares/session";
+// Re-export for convenience
+export { runWithSession } from "../../trpc/middlewares/session";
 
 /**
  * Create a mock session from a Prisma Session and User
@@ -39,31 +44,4 @@ export function createMockSessionFromUserWithOrg(
     email: user.email,
     isAdmin: user.isAdmin,
   });
-}
-
-/**
- * Mock the session provider to return a specific session
- */
-export function mockSession(session: SessionData | null): void {
-  setSessionProvider({
-    getSession: async () => session,
-  });
-}
-
-/**
- * Unmock the session provider (restore default behavior)
- */
-export function unmockSession(): void {
-  resetSessionProvider();
-}
-
-/**
- * Create a session provider that returns the given session
- */
-export function createTestSessionProvider(
-  session: SessionData | null,
-): SessionProvider {
-  return {
-    getSession: async () => session,
-  };
 }

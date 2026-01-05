@@ -1,13 +1,11 @@
-export type { OrgContext, SessionData, SessionProvider } from "./middlewares";
-// Session provider utilities for testing
+export type { OrgContext, SessionData } from "./middlewares";
+// For testing - use runWithSession for parallel-safe session mocking
 export {
   adminOnly,
   auth,
-  createMockSessionProvider,
   getSession,
   orgContext,
-  resetSessionProvider,
-  setSessionProvider,
+  runWithSession,
 } from "./middlewares";
 export type { TRPCBaseContext } from "./tmid";
 export { tmid } from "./tmid";

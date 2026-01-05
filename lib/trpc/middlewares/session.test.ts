@@ -1,18 +1,15 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import {
-  createMockSessionProvider,
-  getSession,
-  resetSessionProvider,
-  type SessionData,
-  setSessionProvider,
-} from "./session";
+import { describe, expect, test } from "bun:test";
+import { getSession, runWithSession, type SessionData } from "./session";
 
-describe("session provider", () => {
-  afterEach(() => {
-    resetSessionProvider();
+describe("session provider with AsyncLocalStorage", () => {
+  test("getSession returns null when not in runWithSession context", async () => {
+    // Outside of runWithSession, and without Next.js cookies available,
+    // getSession should return null
+    const result = await getSession();
+    expect(result).toBeNull();
   });
 
-  test("setSessionProvider allows setting custom provider", async () => {
+  test("runWithSession provides session to getSession", async () => {
     const mockSession: SessionData = {
       id: "test-session-id",
       userId: "test-user-id",
@@ -25,73 +22,105 @@ describe("session provider", () => {
       },
     };
 
-    setSessionProvider({
-      getSession: async () => mockSession,
+    const result = await runWithSession(mockSession, async () => {
+      return await getSession();
     });
 
-    const result = await getSession();
     expect(result).toEqual(mockSession);
   });
 
-  test("setSessionProvider can return null", async () => {
-    setSessionProvider({
-      getSession: async () => null,
+  test("runWithSession can provide null session", async () => {
+    const result = await runWithSession(null, async () => {
+      return await getSession();
     });
 
-    const result = await getSession();
     expect(result).toBeNull();
   });
 
-  test("resetSessionProvider restores default behavior", async () => {
+  test("runWithSession isolates session between nested calls", async () => {
+    const outerSession: SessionData = {
+      id: "outer-session",
+      userId: "outer-user",
+      currentOrgId: "outer-org",
+      expiresAt: new Date(Date.now() + 3600000),
+      user: { id: "outer-user", email: "outer@test.com", isAdmin: false },
+    };
+
+    const innerSession: SessionData = {
+      id: "inner-session",
+      userId: "inner-user",
+      currentOrgId: "inner-org",
+      expiresAt: new Date(Date.now() + 3600000),
+      user: { id: "inner-user", email: "inner@test.com", isAdmin: true },
+    };
+
+    const results = await runWithSession(outerSession, async () => {
+      const beforeInner = await getSession();
+
+      const innerResult = await runWithSession(innerSession, async () => {
+        return await getSession();
+      });
+
+      const afterInner = await getSession();
+
+      return { beforeInner, innerResult, afterInner };
+    });
+
+    expect(results.beforeInner).toEqual(outerSession);
+    expect(results.innerResult).toEqual(innerSession);
+    expect(results.afterInner).toEqual(outerSession);
+  });
+
+  test("runWithSession supports synchronous functions", () => {
     const mockSession: SessionData = {
-      id: "mock-id",
-      userId: "mock-user",
+      id: "sync-session",
+      userId: "sync-user",
       currentOrgId: null,
       expiresAt: new Date(),
-      user: { id: "mock-user", email: "mock@test.com", isAdmin: false },
+      user: { id: "sync-user", email: "sync@test.com", isAdmin: false },
     };
 
-    setSessionProvider({
-      getSession: async () => mockSession,
+    // runWithSession returns the function's return value synchronously
+    const result = runWithSession(mockSession, () => {
+      return "sync-result";
     });
 
-    // Verify mock is active
-    expect(await getSession()).toEqual(mockSession);
-
-    // Reset to default
-    resetSessionProvider();
-
-    // Default provider will try to read cookies which won't work in tests
-    // So it should return null (cookies() throws in test environment)
-    const result = await getSession();
-    expect(result).toBeNull();
+    expect(result).toBe("sync-result");
   });
 
-  test("createMockSessionProvider creates provider with given session", async () => {
-    const mockSession: SessionData = {
-      id: "provider-test-id",
-      userId: "provider-user-id",
-      currentOrgId: "provider-org-id",
-      expiresAt: new Date(Date.now() + 7200000),
-      user: {
-        id: "provider-user-id",
-        email: "provider@example.com",
-        isAdmin: true,
-      },
+  test("parallel runWithSession calls are isolated", async () => {
+    const session1: SessionData = {
+      id: "session-1",
+      userId: "user-1",
+      currentOrgId: "org-1",
+      expiresAt: new Date(Date.now() + 3600000),
+      user: { id: "user-1", email: "user1@test.com", isAdmin: false },
     };
 
-    const provider = createMockSessionProvider(mockSession);
-    setSessionProvider(provider);
+    const session2: SessionData = {
+      id: "session-2",
+      userId: "user-2",
+      currentOrgId: "org-2",
+      expiresAt: new Date(Date.now() + 3600000),
+      user: { id: "user-2", email: "user2@test.com", isAdmin: true },
+    };
 
-    const result = await getSession();
-    expect(result).toEqual(mockSession);
-  });
+    // Run both in parallel
+    const [result1, result2] = await Promise.all([
+      runWithSession(session1, async () => {
+        // Add a small delay to ensure overlap
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return await getSession();
+      }),
+      runWithSession(session2, async () => {
+        // Add a small delay to ensure overlap
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return await getSession();
+      }),
+    ]);
 
-  test("createMockSessionProvider can create null provider", async () => {
-    const provider = createMockSessionProvider(null);
-    setSessionProvider(provider);
-
-    const result = await getSession();
-    expect(result).toBeNull();
+    // Each should have its own session despite running in parallel
+    expect(result1).toEqual(session1);
+    expect(result2).toEqual(session2);
   });
 });

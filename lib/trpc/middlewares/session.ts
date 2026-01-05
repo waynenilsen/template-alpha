@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { prisma } from "../../db";
 
 /**
@@ -16,10 +17,42 @@ export interface SessionData {
 }
 
 /**
- * Session provider interface - allows mocking in tests
+ * AsyncLocalStorage for request-scoped session override
+ * This allows parallel tests to each have their own session without interference
  */
-export interface SessionProvider {
-  getSession: () => Promise<SessionData | null>;
+const sessionStorage = new AsyncLocalStorage<SessionData | null>();
+
+/**
+ * Get the current session
+ * Checks AsyncLocalStorage first (for tests), then falls back to cookies (for production)
+ */
+export async function getSession(): Promise<SessionData | null> {
+  // Check if we're in a test context with a mocked session
+  const store = sessionStorage.getStore();
+  if (store !== undefined) {
+    return store;
+  }
+
+  // Production path: read from cookies
+  return getSessionFromCookies();
+}
+
+/**
+ * Run a function with a specific session (for testing)
+ * Uses AsyncLocalStorage so parallel tests don't interfere with each other
+ *
+ * Usage:
+ * ```typescript
+ * await runWithSession(mockSession, async () => {
+ *   // Inside here, getSession() returns mockSession
+ *   await tmid().use(auth()).build(async ({ session }) => {
+ *     // ...
+ *   });
+ * });
+ * ```
+ */
+export function runWithSession<T>(session: SessionData | null, fn: () => T): T {
+  return sessionStorage.run(session, fn);
 }
 
 /**
@@ -27,15 +60,14 @@ export interface SessionProvider {
  */
 async function getSessionFromCookies(): Promise<SessionData | null> {
   // Dynamic import to avoid issues in non-Next.js environments
-  const { cookies } = await import("next/headers");
-  const { SESSION_COOKIE_OPTIONS } = await import("../../auth/session");
-
   let sessionId: string | null = null;
   try {
+    const { cookies } = await import("next/headers");
+    const { SESSION_COOKIE_OPTIONS } = await import("../../auth/session");
     const cookieStore = await cookies();
     sessionId = cookieStore.get(SESSION_COOKIE_OPTIONS.name)?.value ?? null;
   } catch {
-    // cookies() may fail in some contexts
+    // cookies() may fail in some contexts (tests, non-Next.js)
     return null;
   }
 
@@ -61,45 +93,4 @@ async function getSessionFromCookies(): Promise<SessionData | null> {
   }
 
   return session;
-}
-
-/**
- * Current session provider - can be overridden for testing
- */
-let currentProvider: SessionProvider = {
-  getSession: getSessionFromCookies,
-};
-
-/**
- * Get the current session using the configured provider
- */
-export async function getSession(): Promise<SessionData | null> {
-  return currentProvider.getSession();
-}
-
-/**
- * Set a custom session provider (for testing)
- */
-export function setSessionProvider(provider: SessionProvider): void {
-  currentProvider = provider;
-}
-
-/**
- * Reset to the default session provider
- */
-export function resetSessionProvider(): void {
-  currentProvider = {
-    getSession: getSessionFromCookies,
-  };
-}
-
-/**
- * Create a mock session provider for testing
- */
-export function createMockSessionProvider(
-  session: SessionData | null,
-): SessionProvider {
-  return {
-    getSession: async () => session,
-  };
 }
