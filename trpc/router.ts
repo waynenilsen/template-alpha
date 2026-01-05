@@ -1,6 +1,11 @@
 import { z } from "zod/v4";
 import { createTRPCRouter, publicProcedure } from "./init";
-import { authRouter, organizationRouter, todoRouter } from "./routers";
+import {
+  adminRouter,
+  authRouter,
+  organizationRouter,
+  todoRouter,
+} from "./routers";
 
 /**
  * Main application router
@@ -54,6 +59,11 @@ export const appRouter = createTRPCRouter({
       timestamp: new Date(),
     };
   }),
+
+  /**
+   * Admin router - admin-only platform management
+   */
+  admin: adminRouter,
 
   /**
    * Auth router - authentication and session management
