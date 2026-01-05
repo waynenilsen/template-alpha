@@ -99,6 +99,9 @@ function MarketingPage() {
           <Button size="lg" variant="outline" asChild>
             <Link href="/sign-in">Sign In</Link>
           </Button>
+          <Button size="lg" variant="ghost" asChild>
+            <Link href="/pricing">View Pricing</Link>
+          </Button>
         </div>
       </section>
 

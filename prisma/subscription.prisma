@@ -1,0 +1,107 @@
+/// Plan table - stores synced Stripe product/price information
+/// This is synced by the bootstrap script from the plans.ts configuration
+model Plan {
+  id String @id @default(cuid())
+
+  /// Unique slug from plans.ts - the source of truth identifier
+  slug String @unique
+
+  /// Display name
+  name String
+
+  /// Description
+  description String
+
+  /// Monthly price in cents (0 = free)
+  priceMonthly Int
+
+  /// Yearly price in cents (0 = free, null = no yearly option)
+  priceYearly Int?
+
+  /// Stripe Product ID (null for free plan)
+  stripeProductId String? @unique
+
+  /// Stripe Monthly Price ID (null for free plan)
+  stripePriceMonthlyId String? @unique
+
+  /// Stripe Yearly Price ID (null for free plan or no yearly)
+  stripePriceYearlyId String? @unique
+
+  /// Plan limits stored as JSON
+  /// { maxTodos: number, maxMembers: number, maxOrganizations: number }
+  limits Json
+
+  /// Sort order
+  sortOrder Int @default(0)
+
+  /// Whether this plan is available for new subscriptions
+  active Boolean @default(true)
+
+  /// Whether this is the default plan for new organizations
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@index([active, sortOrder])
+}
+
+/// Subscription table - links organizations to plans
+model Subscription {
+  id String @id @default(cuid())
+
+  /// The organization this subscription belongs to
+  organizationId String @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// The current plan
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  /// Stripe Subscription ID (null for free plan)
+  stripeSubscriptionId String? @unique
+
+  /// Stripe Customer ID (created when org first subscribes)
+  stripeCustomerId String? @unique
+
+  /// Current subscription status
+  status SubscriptionStatus @default(active)
+
+  /// Billing interval
+  interval BillingInterval @default(monthly)
+
+  /// Current period dates (null for free plan)
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+
+  /// If scheduled to cancel at period end
+  cancelAtPeriodEnd Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([stripeCustomerId])
+}
+
+enum SubscriptionStatus {
+  /// Active and paid
+  active
+  /// Payment failed, in grace period
+  past_due
+  /// Subscription canceled
+  canceled
+  /// Trial period (if we add trials later)
+  trialing
+  /// Incomplete initial payment
+  incomplete
+  /// Paused (if we add pause feature)
+  paused
+}
+
+enum BillingInterval {
+  monthly
+  yearly
+}

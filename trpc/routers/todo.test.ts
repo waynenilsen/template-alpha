@@ -7,6 +7,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
+import type { Plan } from "../../lib/generated/prisma/client";
 import { createTestContext, type TestContext } from "../../lib/test/harness";
 import { scenario } from "../../lib/test/scenario";
 import { createTestTRPCContext } from "../init";
@@ -87,6 +88,63 @@ describe("todo router", () => {
         } catch (error) {
           expect(error).toBeInstanceOf(TRPCError);
           expect((error as TRPCError).code).toBe("UNAUTHORIZED");
+        }
+      });
+    });
+
+    // Test subscription limits
+    describe("subscription limits", () => {
+      let ctx: TestContext;
+      let limitedPlan: Plan;
+
+      beforeAll(async () => {
+        ctx = createTestContext();
+        // Create a plan with very low todo limit
+        limitedPlan = await ctx.createPlan({
+          slug: "limited-test",
+          name: "Limited",
+          description: "Limited plan for testing",
+          priceMonthly: 0,
+          limits: { maxTodos: 2, maxMembers: 1, maxOrganizations: 1 },
+          isDefault: true,
+          active: true,
+        });
+      });
+
+      afterAll(async () => {
+        await ctx.cleanup();
+      });
+
+      test("rejects creating todo when limit is reached", async () => {
+        const { user, organization } = await ctx.createUserWithOrg();
+        const session = await ctx.signIn(user, organization.id);
+
+        // Create subscription with limited plan
+        await ctx.createSubscription({
+          organizationId: organization.id,
+          planId: limitedPlan.id,
+        });
+
+        const trpcCtx = createTestTRPCContext({
+          prisma: ctx.prisma,
+          sessionId: session.id,
+          session,
+          user: { id: user.id, email: user.email, isAdmin: user.isAdmin },
+        });
+        const caller = appRouter.createCaller(trpcCtx);
+
+        // Create 2 todos (at limit)
+        await caller.todo.create({ title: "Todo 1" });
+        await caller.todo.create({ title: "Todo 2" });
+
+        // Third should fail
+        try {
+          await caller.todo.create({ title: "Todo 3" });
+          expect(true).toBe(false); // Should not reach here
+        } catch (error) {
+          expect(error).toBeInstanceOf(TRPCError);
+          expect((error as TRPCError).code).toBe("FORBIDDEN");
+          expect((error as TRPCError).message).toContain("Todo limit reached");
         }
       });
     });

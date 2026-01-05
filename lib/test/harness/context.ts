@@ -6,7 +6,9 @@ import {
   createMembershipFactory,
   createOrganizationFactory,
   createPasswordResetTokenFactory,
+  createPlanFactory,
   createSessionFactory,
+  createSubscriptionFactory,
   createTodoFactory,
   createUserFactory,
 } from "./factories";
@@ -32,6 +34,8 @@ export function createTestContext(): TestContext {
   const sessionIds = new Set<string>();
   const todoIds = new Set<string>();
   const passwordResetTokenIds = new Set<string>();
+  const planIds = new Set<string>();
+  const subscriptionIds = new Set<string>();
 
   const createUser = createUserFactory(prisma, prefix, userIds);
   const createOrganization = createOrganizationFactory(
@@ -45,6 +49,12 @@ export function createTestContext(): TestContext {
   const createPasswordResetToken = createPasswordResetTokenFactory(
     prisma,
     passwordResetTokenIds,
+  );
+  const createPlan = createPlanFactory(prisma, prefix, planIds);
+  const createSubscription = createSubscriptionFactory(
+    prisma,
+    prefix,
+    subscriptionIds,
   );
 
   const createUserWithOrg = async (
@@ -79,7 +89,14 @@ export function createTestContext(): TestContext {
 
   const cleanup = async (): Promise<void> => {
     // Delete in reverse order of dependencies
-    // Todos first (depend on users and orgs)
+    // Subscriptions first (depend on orgs and plans)
+    if (subscriptionIds.size > 0) {
+      await prisma.subscription.deleteMany({
+        where: { id: { in: Array.from(subscriptionIds) } },
+      });
+    }
+
+    // Todos (depend on users and orgs)
     if (todoIds.size > 0) {
       await prisma.todo.deleteMany({
         where: { id: { in: Array.from(todoIds) } },
@@ -114,6 +131,13 @@ export function createTestContext(): TestContext {
       });
     }
 
+    // Plans (after subscriptions that reference them)
+    if (planIds.size > 0) {
+      await prisma.plan.deleteMany({
+        where: { id: { in: Array.from(planIds) } },
+      });
+    }
+
     // Users last (after everything that references them)
     if (userIds.size > 0) {
       await prisma.user.deleteMany({
@@ -131,12 +155,16 @@ export function createTestContext(): TestContext {
     sessionIds,
     todoIds,
     passwordResetTokenIds,
+    planIds,
+    subscriptionIds,
     createUser,
     createOrganization,
     createMembership,
     createSession,
     createTodo,
     createPasswordResetToken,
+    createPlan,
+    createSubscription,
     createUserWithOrg,
     signIn,
     cleanup,
