@@ -1,9 +1,12 @@
-"use client";
-
 import Link from "next/link";
-import { type Organization, OrgPicker } from "@/components/org-picker";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UserNav } from "@/components/user-nav";
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+}
 
 export interface AppShellViewProps {
   children: React.ReactNode;
@@ -15,14 +18,18 @@ export interface AppShellViewProps {
   };
   organizations: Organization[];
   currentOrgId: string | null;
+  /** Render prop for the organization picker */
+  renderOrgPicker: () => React.ReactNode;
+  /** Render prop for the user navigation */
+  renderUserNav: () => React.ReactNode;
 }
 
 export function AppShellView({
   children,
   isLoading,
   user,
-  organizations,
-  currentOrgId,
+  renderOrgPicker,
+  renderUserNav,
 }: AppShellViewProps) {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -36,16 +43,13 @@ export function AppShellView({
             {isLoading ? (
               <Skeleton className="h-9 w-[200px]" />
             ) : (
-              <OrgPicker
-                organizations={organizations}
-                currentOrgId={currentOrgId}
-              />
+              renderOrgPicker()
             )}
           </div>
           {isLoading ? (
             <Skeleton className="h-8 w-8 rounded-full" />
           ) : user ? (
-            <UserNav email={user.email} isAdmin={user.isAdmin} />
+            renderUserNav()
           ) : null}
         </div>
       </header>

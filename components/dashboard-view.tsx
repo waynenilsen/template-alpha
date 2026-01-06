@@ -1,12 +1,12 @@
-"use client";
-
-import { Building2, Plus } from "lucide-react";
-import { CreateOrganizationDialog } from "@/components/create-organization-dialog";
-import { type Organization, OrgPicker } from "@/components/org-picker";
-import { TodoList } from "@/components/todo-list";
-import { Button } from "@/components/ui/button";
+import { Building2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserNav } from "@/components/user-nav";
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+}
 
 export interface DashboardViewProps {
   user: {
@@ -17,13 +17,23 @@ export interface DashboardViewProps {
   currentOrgId: string | null;
   organizations: Organization[];
   userRole: "owner" | "admin" | "member";
+  /** Render prop for the organization picker */
+  renderOrgPicker: () => React.ReactNode;
+  /** Render prop for the user navigation */
+  renderUserNav: () => React.ReactNode;
+  /** Render prop for the todo list (shown when org selected) */
+  renderTodoList: () => React.ReactNode;
+  /** Render prop for the create organization dialog trigger */
+  renderCreateOrgButton: () => React.ReactNode;
 }
 
 export function DashboardView({
-  user,
   currentOrgId,
   organizations,
-  userRole,
+  renderOrgPicker,
+  renderUserNav,
+  renderTodoList,
+  renderCreateOrgButton,
 }: DashboardViewProps) {
   const currentOrg = organizations.find((org) => org.id === currentOrgId);
 
@@ -39,21 +49,18 @@ export function DashboardView({
             <h1 className="text-lg font-semibold" data-testid="dashboard-title">
               Todo App
             </h1>
-            <OrgPicker
-              organizations={organizations}
-              currentOrgId={currentOrgId}
-            />
+            {renderOrgPicker()}
           </div>
-          <UserNav email={user.email} isAdmin={user.isAdmin} />
+          {renderUserNav()}
         </div>
       </header>
 
       {/* Main content */}
       <main className="container mx-auto px-4 py-8">
         {currentOrgId && currentOrg ? (
-          <TodoList userRole={userRole} />
+          renderTodoList()
         ) : organizations.length === 0 ? (
-          <NoOrganizations />
+          <NoOrganizations renderCreateOrgButton={renderCreateOrgButton} />
         ) : (
           <SelectOrganization />
         )}
@@ -62,7 +69,11 @@ export function DashboardView({
   );
 }
 
-function NoOrganizations() {
+interface NoOrganizationsProps {
+  renderCreateOrgButton: () => React.ReactNode;
+}
+
+function NoOrganizations({ renderCreateOrgButton }: NoOrganizationsProps) {
   return (
     <div
       className="flex min-h-[400px] items-center justify-center"
@@ -80,14 +91,7 @@ function NoOrganizations() {
             You're not a member of any organization yet. Create one to get
             started with your todos.
           </p>
-          <CreateOrganizationDialog
-            trigger={
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Create Organization
-              </Button>
-            }
-          />
+          {renderCreateOrgButton()}
         </CardContent>
       </Card>
     </div>
