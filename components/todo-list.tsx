@@ -2,10 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Circle, Loader2, Plus, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { UpgradeLimitDialog, UpgradeNudge } from "@/components/upgrade-nudge";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 
@@ -18,6 +19,7 @@ export function TodoList({ userRole }: TodoListProps) {
   const queryClient = useQueryClient();
   const [newTodoTitle, setNewTodoTitle] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
 
   const canDelete = userRole === "owner" || userRole === "admin";
 
@@ -27,17 +29,35 @@ export function TodoList({ userRole }: TodoListProps) {
   // Fetch stats
   const statsQuery = useQuery(trpc.todo.stats.queryOptions());
 
+  // Fetch subscription with usage
+  const subscriptionQuery = useQuery(
+    trpc.subscription.getCurrent.queryOptions(),
+  );
+
   // Create todo mutation
   const createMutation = useMutation(
     trpc.todo.create.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: trpc.todo.list.queryKey() });
         queryClient.invalidateQueries({ queryKey: trpc.todo.stats.queryKey() });
+        queryClient.invalidateQueries({
+          queryKey: trpc.subscription.getCurrent.queryKey(),
+        });
         setNewTodoTitle("");
         setIsCreating(false);
       },
     }),
   );
+
+  // Show limit dialog when todo creation fails due to limit
+  useEffect(() => {
+    if (
+      createMutation.error?.message?.includes("limit reached") ||
+      createMutation.error?.message?.includes("Upgrade your plan")
+    ) {
+      setShowLimitDialog(true);
+    }
+  }, [createMutation.error]);
 
   // Toggle completion mutation
   const toggleMutation = useMutation(
@@ -55,6 +75,9 @@ export function TodoList({ userRole }: TodoListProps) {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: trpc.todo.list.queryKey() });
         queryClient.invalidateQueries({ queryKey: trpc.todo.stats.queryKey() });
+        queryClient.invalidateQueries({
+          queryKey: trpc.subscription.getCurrent.queryKey(),
+        });
       },
     }),
   );
@@ -62,14 +85,55 @@ export function TodoList({ userRole }: TodoListProps) {
   const handleCreateTodo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTodoTitle.trim()) return;
+
+    // Check if at limit before attempting
+    const usage = subscriptionQuery.data?.usage;
+    const limit = subscriptionQuery.data?.plan?.limits?.maxTodos ?? -1;
+    if (limit !== -1 && usage && usage.todos.current >= limit) {
+      setShowLimitDialog(true);
+      return;
+    }
+
     createMutation.mutate({ title: newTodoTitle.trim() });
+  };
+
+  const handleAddButtonClick = () => {
+    // Check if at limit before showing form
+    const usage = subscriptionQuery.data?.usage;
+    const limit = subscriptionQuery.data?.plan?.limits?.maxTodos ?? -1;
+    if (limit !== -1 && usage && usage.todos.current >= limit) {
+      setShowLimitDialog(true);
+      return;
+    }
+    setIsCreating(true);
   };
 
   const todos = todosQuery.data?.items ?? [];
   const stats = statsQuery.data;
+  const subscription = subscriptionQuery.data;
 
   return (
     <div className="max-w-2xl mx-auto">
+      {/* Upgrade nudge */}
+      {subscription && (
+        <UpgradeNudge
+          current={subscription.usage.todos.current}
+          limit={subscription.usage.todos.limit}
+          planName={subscription.plan.name}
+        />
+      )}
+
+      {/* Upgrade limit dialog */}
+      {subscription && (
+        <UpgradeLimitDialog
+          open={showLimitDialog}
+          onOpenChange={setShowLimitDialog}
+          current={subscription.usage.todos.current}
+          limit={subscription.usage.todos.limit}
+          planName={subscription.plan.name}
+        />
+      )}
+
       {/* Header with inline stats */}
       <div className="mb-8">
         <h2 className="text-2xl font-semibold tracking-tight mb-1">Tasks</h2>
@@ -165,7 +229,7 @@ export function TodoList({ userRole }: TodoListProps) {
         ) : (
           <button
             type="button"
-            onClick={() => setIsCreating(true)}
+            onClick={handleAddButtonClick}
             className="w-full flex items-center gap-3 px-3 py-3 text-muted-foreground hover:text-foreground rounded-lg border border-dashed border-muted-foreground/25 hover:border-muted-foreground/40 transition-colors"
             data-testid="todo-add-button"
           >

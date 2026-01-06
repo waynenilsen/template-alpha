@@ -79,20 +79,25 @@ When you run tests, **review the coverage output** at the bottom. Check:
 
 ### Coverage Requirements
 
-- **Current threshold: 81%** (configured in `bunfig.toml`)
-- CI will fail if coverage drops below this threshold
+- **Current threshold: 86%** (configured in `bunfig.toml`)
+- **IMPORTANT: The threshold is applied at the FILE level**, not overall. Each file must meet the threshold individually.
+- CI will fail if any file's coverage drops below the threshold
 - **Goal: 100% coverage** - always write tests that increase coverage
 - When adding new code, you MUST add tests that cover it
 - Never submit code that decreases coverage
+- Files that cannot be unit tested (client components requiring browser, Stripe integration, etc.) should be added to `coveragePathIgnorePatterns` in `bunfig.toml`
 
 ### AI Assistants: Testing Workflow
+
+**CRITICAL: Always run `bun test:coverage` BEFORE pushing to avoid wasting CI minutes.**
 
 When writing or modifying code:
 1. Write the code changes
 2. Write tests for the new/changed code
 3. Run `bun test:coverage` and review the coverage table
-4. If coverage decreased or new code is uncovered, add more tests
-5. Repeat until coverage is maintained or improved
+4. Check EACH FILE in the table - if any new file is below 86%, add more tests or add it to `bunfig.toml` ignore patterns
+5. If a file cannot be unit tested (requires browser environment, external services, etc.), add it to `coveragePathIgnorePatterns` in `bunfig.toml` with a comment explaining why
+6. Repeat until all files meet the threshold
 
 ### Writing Tests
 
@@ -111,6 +116,44 @@ describe("myFunction", () => {
   });
 });
 ```
+
+### Testing React Components with Hooks
+
+For components that use hooks (tRPC, React Query, etc.), use `mock.module` BEFORE importing the component:
+
+```typescript
+import { describe, expect, mock, test } from "bun:test";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+
+// Mock modules BEFORE importing the component
+mock.module("@/trpc/client", () => ({
+  useTRPC: () => ({
+    // Mock the tRPC structure your component needs
+  }),
+}));
+
+mock.module("@tanstack/react-query", () => ({
+  useMutation: () => ({
+    mutate: mock(() => {}),
+    isPending: false,
+    error: null,
+  }),
+}));
+
+// Import component AFTER mocking
+import { MyComponent } from "./my-component";
+
+test("renders correctly", () => {
+  const html = renderToString(createElement(MyComponent, { props }));
+  expect(html).toContain("expected content");
+});
+```
+
+**Key principles:**
+- Mock external dependencies, not your own code
+- For components with hooks, separate presentational logic into testable sub-components when possible
+- Use `renderToString` for SSR testing of React components
 
 ## Frontend Development Workflow
 
