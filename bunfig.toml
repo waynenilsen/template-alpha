@@ -44,6 +44,7 @@ coveragePathIgnorePatterns = [
   "components/change-password-form.tsx",
   "components/delete-account-dialog.tsx",
   "components/user-settings-form.tsx",
+  "components/avatar-upload-view.tsx",
   # Custom hooks - require browser environment (React Query, tRPC, Next.js router)
   # Logic is tested via Storybook and type definitions
   "hooks/use-*.ts",
@@ -61,6 +62,7 @@ coveragePathIgnorePatterns = [
   "components/upgrade-nudge.tsx",
   "components/dashboard.tsx",
   "components/app-shell.tsx",
+  "components/avatar-upload.tsx",
   # App pages are integration code tested via e2e tests
   "app/**",
   # trpc/init.ts contains createServerSideContext which requires Next.js runtime

@@ -1,9 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Trash2, User } from "lucide-react";
+import { Camera, KeyRound, Trash2, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AvatarUpload } from "@/components/avatar-upload";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { Button } from "@/components/ui/button";
@@ -140,6 +141,23 @@ export default function AccountSettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Avatar Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Avatar
+            </CardTitle>
+            <CardDescription>Customize your profile picture</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AvatarUpload
+              type="user"
+              fallbackText={profile?.name ?? profile?.email ?? "User"}
+            />
+          </CardContent>
+        </Card>
+
         {/* Profile Settings */}
         <Card>
           <CardHeader>
