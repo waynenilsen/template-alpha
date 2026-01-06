@@ -4,6 +4,7 @@ import { createTRPCRouter, publicProcedure } from "./init";
 import {
   adminRouter,
   authRouter,
+  avatarRouter,
   organizationRouter,
   subscriptionRouter,
   todoRouter,
@@ -96,6 +97,11 @@ export const appRouter = createTRPCRouter({
    * User router - user profile and settings
    */
   user: userRouter,
+
+  /**
+   * Avatar router - avatar upload/download for users and orgs
+   */
+  avatar: avatarRouter,
 });
 
 // Export type definition of the API for client usage
