@@ -66,22 +66,23 @@ bun s3:start       # Start MinIO S3 storage (auto-detects Docker vs local)
 
 ### Running Tests
 
-**IMPORTANT: Always run tests with coverage to monitor impact:**
+**CRITICAL: Always run tests with coverage BEFORE every commit:**
 
 ```bash
-bun test:coverage  # Always use this - shows coverage report
+bun test:coverage  # MUST run this before EVERY commit
 ```
 
-When you run tests, **review the coverage output** at the bottom. Check:
+When you run tests, **carefully review the coverage table** at the bottom of the output. Check:
 1. Did your changes decrease overall coverage?
 2. Are your new files showing up with good coverage?
 3. What lines are uncovered? Add tests for them.
+4. **Check EVERY file individually** - each must meet the 86% threshold!
 
 ### Coverage Requirements
 
 - **Current threshold: 86%** (configured in `bunfig.toml`)
-- **IMPORTANT: The threshold is applied at the FILE level**, not overall. Each file must meet the threshold individually.
-- CI will fail if any file's coverage drops below the threshold
+- **⚠️ THE THRESHOLD IS APPLIED AT THE FILE LEVEL, NOT OVERALL!** Each file must meet 86% individually.
+- CI will fail if ANY file's coverage drops below the threshold
 - **Goal: 100% coverage** - always write tests that increase coverage
 - When adding new code, you MUST add tests that cover it
 - Never submit code that decreases coverage
@@ -89,15 +90,38 @@ When you run tests, **review the coverage output** at the bottom. Check:
 
 ### AI Assistants: Testing Workflow
 
-**CRITICAL: Always run `bun test:coverage` BEFORE pushing to avoid wasting CI minutes.**
+**CRITICAL: Always run `bun test:coverage` BEFORE EVERY COMMIT - not just before PRs!**
 
 When writing or modifying code:
 1. Write the code changes
 2. Write tests for the new/changed code
-3. Run `bun test:coverage` and review the coverage table
-4. Check EACH FILE in the table - if any new file is below 86%, add more tests or add it to `bunfig.toml` ignore patterns
+3. Run `bun test:coverage` and **carefully review the coverage table**
+4. **Check EACH FILE in the table individually** - if ANY file is below 86%, you MUST either:
+   - Add more tests to increase coverage, OR
+   - Add the file to `coveragePathIgnorePatterns` in `bunfig.toml` with a comment explaining why it cannot be tested
 5. If a file cannot be unit tested (requires browser environment, external services, etc.), add it to `coveragePathIgnorePatterns` in `bunfig.toml` with a comment explaining why
-6. Repeat until all files meet the threshold
+6. **Repeat until ALL files meet the threshold** - do not commit until this passes!
+
+### What Can and Cannot Be Mocked
+
+**🚫 NEVER MOCK SERVICES WE HAVE LOCAL VERSIONS FOR - NO EXCEPTIONS!**
+
+We have local services for testing - use them:
+- **PostgreSQL**: Run `bun db:start` - tests run against a real database
+- **Email (MailHog)**: Run `bun mail:start` - captures emails locally
+- **Stripe (stripe-mock)**: Run `bun stripe:mock` - local Stripe API
+- **S3 (MinIO)**: Run `bun s3:start` - local S3-compatible storage
+
+**✅ You CAN mock:**
+- Browser-specific APIs (window.location, localStorage, etc.)
+- React hooks that require browser runtime (useState in "use client" components)
+- Next.js runtime functions (cookies(), headers() from next/headers)
+
+**Why no mocking of local services?**
+- Tests catch real issues (constraints, API behavior, edge cases)
+- No false confidence from mocked behavior
+- Integration issues are caught early
+- Mocking gives false security - your code might work with mocks but fail with the real service
 
 ### Writing Tests
 
@@ -179,21 +203,23 @@ Do this:
 - Before considering a task complete
 - When debugging type-related errors
 
-### Before Creating a PR
+### Before EVERY Commit
 
-Always run the following before committing your final changes:
+**Run the full verification suite before EVERY commit, not just before PRs:**
 
 ```bash
 bun test:coverage && bun typecheck && bun lint:fix && bun format && git add .
 ```
 
-**Important:** Run these commands in this order:
-1. `bun test:coverage` - Run tests and verify coverage didn't drop
+**You MUST run these commands in this order:**
+1. `bun test:coverage` - **Run tests and CHECK THE COVERAGE TABLE** - every file must be ≥86%!
 2. `bun typecheck` - Checks for TypeScript errors
 3. `bun lint:fix` - Fixes lint issues and organizes imports
 4. `bun format` - Applies code formatting
 
-Skipping any of these steps may cause CI to fail.
+**⚠️ DO NOT COMMIT if `bun test:coverage` fails or shows any file below 86%!**
+
+Skipping any of these steps WILL cause CI to fail. Running them locally saves CI minutes and avoids embarrassing failed builds.
 
 ## Git Workflow
 

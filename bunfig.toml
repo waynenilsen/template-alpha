@@ -48,5 +48,14 @@ coveragePathIgnorePatterns = [
   "app/**",
   # trpc/init.ts contains createServerSideContext which requires Next.js runtime
   # createTestTRPCContext is tested, but createServerSideContext needs cookies() from next/headers
-  "trpc/init.ts"
+  "trpc/init.ts",
+  # Client-side tRPC provider - uses "use client", useState, and browser-specific code
+  # Cannot be unit tested without browser environment
+  "trpc/client.tsx",
+  # Client-side QueryClient setup - uses browser detection (typeof window)
+  # Cannot be unit tested without browser environment
+  "trpc/query-client.ts",
+  # UpgradeLimitDialog uses window.location.href for redirects which requires browser
+  # The testable parts (getUsageLevel, UpgradeNudge, UpgradeLimitDialogContent) are thoroughly tested
+  "components/upgrade-nudge.tsx"
 ]
