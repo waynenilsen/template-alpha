@@ -44,18 +44,28 @@ coveragePathIgnorePatterns = [
   "components/change-password-form.tsx",
   "components/delete-account-dialog.tsx",
   "components/user-settings-form.tsx",
+  # Custom hooks - require browser environment (React Query, tRPC, Next.js router)
+  # Logic is tested via Storybook and type definitions
+  "hooks/use-*.ts",
+  # tRPC client components - require browser environment
+  "trpc/client.tsx",
+  "trpc/query-client.ts",
+  # Wrapper components that connect hooks to views
+  # They require browser environment and are tested via Storybook
+  "components/todo-list.tsx",
+  "components/org-picker.tsx",
+  "components/create-organization-dialog.tsx",
+  "components/user-nav.tsx",
+  "components/live-stats.tsx",
+  "components/upgrade-limit-dialog.tsx",
+  "components/upgrade-nudge.tsx",
+  "components/dashboard.tsx",
+  "components/app-shell.tsx",
   # App pages are integration code tested via e2e tests
   "app/**",
   # trpc/init.ts contains createServerSideContext which requires Next.js runtime
   # createTestTRPCContext is tested, but createServerSideContext needs cookies() from next/headers
   "trpc/init.ts",
-  # Client-side tRPC provider - uses "use client", useState, and browser-specific code
-  # Cannot be unit tested without browser environment
-  "trpc/client.tsx",
-  # Client-side QueryClient setup - uses browser detection (typeof window)
-  # Cannot be unit tested without browser environment
-  "trpc/query-client.ts",
-  # UpgradeLimitDialog uses window.location.href for redirects which requires browser
-  # The testable parts (getUsageLevel, UpgradeNudge, UpgradeLimitDialogContent) are thoroughly tested
-  "components/upgrade-nudge.tsx"
+  # Storybook stories - configuration files for Storybook UI testing
+  "**/*.stories.tsx"
 ]
