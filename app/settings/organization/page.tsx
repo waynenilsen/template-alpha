@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
+  Camera,
   Crown,
   Loader2,
   Mail,
@@ -16,6 +17,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AvatarUpload } from "@/components/avatar-upload";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -307,6 +309,24 @@ export default function OrganizationSettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Organization Avatar */}
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Organization Avatar
+              </CardTitle>
+              <CardDescription>
+                Customize your organization's profile picture
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AvatarUpload type="organization" fallbackText={org.name} />
+            </CardContent>
+          </Card>
+        )}
 
         {/* Team Members */}
         <Card>
