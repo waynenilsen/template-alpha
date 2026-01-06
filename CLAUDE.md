@@ -47,31 +47,84 @@ This is a **multi-tenant SaaS scaffold** using the Todo app as a demonstration k
 ## Commands
 
 ```bash
-bun dev            # Start dev server (port 58665)
-bun build          # Production build
-bun test           # Run unit tests
-bun test:coverage  # Run tests with coverage report
-bun typecheck      # TypeScript type checking (CI uses this)
-bun lint           # Run Biome checks (CI uses this)
-bun lint:fix       # Fix lint issues (imports, rules)
-bun format         # Format with Biome
-bun db:start       # Start PostgreSQL (auto-detects Docker vs local)
-bun mail:start     # Start mail server (auto-detects Docker vs local)
-bun stripe:mock    # Start Stripe mock server (auto-detects Docker vs local)
-bun stripe:sync    # Sync subscription plans to Stripe and database
-bun s3:start       # Start MinIO S3 storage (auto-detects Docker vs local)
+bun run dev            # Start dev server (port 58665)
+bun run build          # Production build
+bun run test           # Run tests (clean environment + wipe + seed)
+bun run test:coverage  # Run tests with coverage report
+bun run test:fast      # Run tests without wipe (faster for debugging)
+bun run test:env       # Set up test environment only (no tests)
+bun run test:env:check # Check health of all test services
+bun run typecheck      # TypeScript type checking (CI uses this)
+bun run lint           # Run Biome checks (CI uses this)
+bun run lint:fix       # Fix lint issues (imports, rules)
+bun run format         # Format with Biome
+bun run db:start       # Start PostgreSQL (auto-detects Docker vs local)
+bun run mail:start     # Start mail server (auto-detects Docker vs local)
+bun run stripe:mock    # Start Stripe mock server (auto-detects Docker vs local)
+bun run stripe:sync    # Sync subscription plans to Stripe and database
+bun run s3:start       # Start MinIO S3 storage (auto-detects Docker vs local)
 ```
+
+**IMPORTANT:** Always use `bun run <script>` instead of `bun <script>` to ensure the test environment wrapper is used.
 
 ## Testing
 
 **We strive for 100% test coverage.** All new code must include tests.
+
+### Test Environment Wrapper (Recommended for AI Agents)
+
+The test environment wrapper provides a **clean slate** for each test run. This is especially useful for AI agents and CI environments where test isolation is critical.
+
+```bash
+bun run test           # Full setup + wipe + seed + run tests (DEFAULT)
+bun run test:coverage  # Same as above but with coverage report
+bun run test:fast      # Skip wipe (faster for debugging)
+bun run test:env       # Set up environment only (boot services, wipe, push schema, seed)
+bun run test:env:check # Check health of all services
+```
+
+**What `bun run test` does:**
+1. Boots PostgreSQL if not running
+2. Wipes the database (drops public schema and recreates)
+3. Pushes Prisma schema
+4. Seeds required test data (subscription plans, etc.)
+5. Boots MailHog if not running
+6. Boots MinIO if not running
+7. Wipes S3 buckets
+8. Runs tests with coverage
+
+**Options for `bun run test:env`:**
+```bash
+bun run test:env              # Full setup with wipe (default)
+bun run test:env --no-wipe    # Skip wiping (faster for debugging)
+bun run test:env --skip-mail  # Skip MailHog setup
+bun run test:env --skip-s3    # Skip MinIO setup
+bun run test:env --check      # Only check health, don't boot or wipe
+```
+
+**Programmatic API** (for advanced use in `scripts/test-env/index.ts`):
+```typescript
+import { testEnv } from "./scripts/test-env";
+
+// Check health of all services
+const health = await testEnv.checkHealth();
+
+// Full setup
+await testEnv.setup({ wipeDatabase: true, wipeS3: true });
+
+// Individual operations
+await testEnv.bootPostgres();
+await testEnv.wipePostgres();
+await testEnv.pushSchema();
+await testEnv.seed();
+```
 
 ### Running Tests
 
 **CRITICAL: Always run tests with coverage BEFORE every commit:**
 
 ```bash
-bun test:coverage  # MUST run this before EVERY commit
+bun run test:coverage  # MUST run this before EVERY commit
 ```
 
 When you run tests, **carefully review the coverage table** at the bottom of the output. Check:
@@ -92,12 +145,12 @@ When you run tests, **carefully review the coverage table** at the bottom of the
 
 ### AI Assistants: Testing Workflow
 
-**CRITICAL: Always run `bun test:coverage` BEFORE EVERY COMMIT - not just before PRs!**
+**CRITICAL: Always run `bun run test:coverage` BEFORE EVERY COMMIT - not just before PRs!**
 
 When writing or modifying code:
 1. Write the code changes
 2. Write tests for the new/changed code
-3. Run `bun test:coverage` and **carefully review the coverage table**
+3. Run `bun run test:coverage` and **carefully review the coverage table**
 4. **Check EACH FILE in the table individually** - if ANY file is below 86%, you MUST either:
    - Add more tests to increase coverage, OR
    - Add the file to `coveragePathIgnorePatterns` in `bunfig.toml` with a comment explaining why it cannot be tested
@@ -109,10 +162,10 @@ When writing or modifying code:
 **🚫 NEVER MOCK SERVICES WE HAVE LOCAL VERSIONS FOR - NO EXCEPTIONS!**
 
 We have local services for testing - use them:
-- **PostgreSQL**: Run `bun db:start` - tests run against a real database
-- **Email (MailHog)**: Run `bun mail:start` - captures emails locally
-- **Stripe (stripe-mock)**: Run `bun stripe:mock` - local Stripe API
-- **S3 (MinIO)**: Run `bun s3:start` - local S3-compatible storage
+- **PostgreSQL**: Run `bun run db:start` - tests run against a real database
+- **Email (MailHog)**: Run `bun run mail:start` - captures emails locally
+- **Stripe (stripe-mock)**: Run `bun run stripe:mock` - local Stripe API
+- **S3 (MinIO)**: Run `bun run s3:start` - local S3-compatible storage
 
 **✅ You CAN mock:**
 - Browser-specific APIs (window.location, localStorage, etc.)
@@ -210,16 +263,16 @@ Do this:
 **Run the full verification suite before EVERY commit, not just before PRs:**
 
 ```bash
-bun test:coverage && bun typecheck && bun lint:fix && bun format && git add .
+bun run test:coverage && bun run typecheck && bun run lint:fix && bun run format && git add .
 ```
 
 **You MUST run these commands in this order:**
-1. `bun test:coverage` - **Run tests and CHECK THE COVERAGE TABLE** - every file must be ≥86%!
-2. `bun typecheck` - Checks for TypeScript errors
-3. `bun lint:fix` - Fixes lint issues and organizes imports
-4. `bun format` - Applies code formatting
+1. `bun run test:coverage` - **Run tests and CHECK THE COVERAGE TABLE** - every file must be ≥86%!
+2. `bun run typecheck` - Checks for TypeScript errors
+3. `bun run lint:fix` - Fixes lint issues and organizes imports
+4. `bun run format` - Applies code formatting
 
-**⚠️ DO NOT COMMIT if `bun test:coverage` fails or shows any file below 86%!**
+**⚠️ DO NOT COMMIT if `bun run test:coverage` fails or shows any file below 86%!**
 
 Skipping any of these steps WILL cause CI to fail. Running them locally saves CI minutes and avoids embarrassing failed builds.
 
@@ -258,7 +311,7 @@ This keeps one clean commit per feature/fix instead of cluttering history with W
 
 ### Formatting
 - 2-space indentation
-- Biome handles formatting—run `bun format` before committing
+- Biome handles formatting—run `bun run format` before committing
 - Import organization is automatic via Biome
 
 ## Adding shadcn Components
@@ -272,7 +325,7 @@ bunx shadcn@latest add [component-name]
 ## Database
 
 ```bash
-bun db:start  # Start PostgreSQL
+bun run db:start  # Start PostgreSQL
 ```
 
 The `db:start` script handles PostgreSQL setup automatically:
@@ -291,7 +344,7 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:54673/template_alpha"
 ## Mail Server
 
 ```bash
-bun mail:start  # Start mail server for development
+bun run mail:start  # Start mail server for development
 ```
 
 The `mail:start` script handles mail server setup automatically:
@@ -309,7 +362,7 @@ MailHog provides:
 ## Stripe Mock
 
 ```bash
-bun stripe:mock  # Start Stripe mock server for development
+bun run stripe:mock  # Start Stripe mock server for development
 ```
 
 The `stripe:mock` script handles stripe-mock setup automatically:
@@ -325,8 +378,8 @@ stripe-mock provides a local Stripe API for development:
 
 To sync plans with stripe-mock:
 ```bash
-bun stripe:mock   # Start stripe-mock first
-bun stripe:sync   # Sync plans to stripe-mock and database
+bun run stripe:mock   # Start stripe-mock first
+bun run stripe:sync   # Sync plans to stripe-mock and database
 ```
 
 Environment variables (already set in `.env.local`):
@@ -340,7 +393,7 @@ STRIPE_MOCK_URL="http://localhost:59310"
 ## S3 Storage (MinIO)
 
 ```bash
-bun s3:start  # Start MinIO S3-compatible storage
+bun run s3:start  # Start MinIO S3-compatible storage
 ```
 
 The `s3:start` script handles MinIO setup automatically:
@@ -373,8 +426,8 @@ S3_BUCKET_PRIVATE="template-alpha-private"
 Run tests with:
 
 ```bash
-bun test           # Run all tests
-bun test <file>    # Run specific test file
+bun run test           # Run all tests (with clean environment)
+bun run test <file>    # Run specific test file
 ```
 
 ### Testing Philosophy

@@ -22,6 +22,8 @@ coveragePathIgnorePatterns = [
   "lib/email/send.ts",
   # Test infrastructure - these are utilities for writing tests, not production code
   "lib/test/scenario/**",
+  # Test environment wrapper - scripts for bootstrapping test services
+  "scripts/test-env/**",
   # Session mocking utilities - only used by tests, not production code
   "lib/test/harness/session-mock.ts",
   # tmid session.ts contains getSessionFromCookies which requires Next.js runtime
