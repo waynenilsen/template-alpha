@@ -65,6 +65,7 @@ coveragePathIgnorePatterns = [
   "components/dashboard.tsx",
   "components/app-shell.tsx",
   "components/avatar-upload.tsx",
+  "components/image-cropper-dialog.tsx",
   # App pages are integration code tested via e2e tests
   "app/**",
   # trpc/init.ts contains createServerSideContext which requires Next.js runtime
