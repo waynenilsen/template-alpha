@@ -22,13 +22,30 @@ mock.module("@tanstack/react-query", () => ({
   }),
 }));
 
-// Import after mocking
+// Mock the custom hooks
+mock.module("@/hooks/use-upgrade-nudge", () => ({
+  useUpgradeNudge: () => ({
+    isDismissed: false,
+    handleDismiss: mock(() => {}),
+  }),
+}));
+
+mock.module("@/hooks/use-upgrade-limit-dialog", () => ({
+  useUpgradeLimitDialog: () => ({
+    interval: "monthly" as const,
+    setInterval: mock(() => {}),
+    handleUpgrade: mock(() => {}),
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 import {
-  getUsageLevel,
   UpgradeLimitDialog,
   UpgradeLimitDialogContent,
-  UpgradeNudge,
-} from "./upgrade-nudge";
+} from "./upgrade-limit-dialog";
+// Import after mocking
+import { getUsageLevel, UpgradeNudge } from "./upgrade-nudge";
 
 describe("getUsageLevel", () => {
   test("returns none for unlimited plans", () => {
